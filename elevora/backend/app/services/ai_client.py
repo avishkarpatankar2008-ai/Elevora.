@@ -1,27 +1,42 @@
 """
-AI client for the interview engine (Phase 2: question generation, answer
-analysis) and voice layer (Phase 3: transcription, speech synthesis).
+AI client for the ELEVORA interview engine.
 
-IMPORTANT — this is the one piece of the AI engine that could NOT be
-exercised against the real OpenAI API while building this: the sandbox this
-was built in has no network access to api.openai.com (only package
-registries and api.anthropic.com are reachable). Everything else is
-covered by tests using FakeAIClient (see tests/conftest.py); this class
-itself is not. That goes double for the Phase 3 additions below — the
-audio.transcriptions and audio.speech endpoints were never exercised, not
-even the request shape checked against a live error response.
+TEXT AI
+-------
+All text-generation features use OpenRouter:
 
-The request shape for question/answer generation (client.responses.create
-with text.format.type = "json_schema", strict=True) matches current OpenAI
-documentation as of when this was written, and additionalProperties: False
-+ all fields listed in `required` is deliberate — that's what strict mode
-requires even for "optional" fields (which become nullable-typed instead of
-omittable).
+    - Question generation
+    - Answer analysis
+    - Candidate profile extraction
+    - Job profile extraction
+    - Final evaluation
 
-Before trusting this: set OPENAI_API_KEY and run
-    python -m scripts.smoke_test_ai
-and read its output. Don't assume this file is correct just because it's
-well-commented.
+VOICE AI
+--------
+Voice features remain on OpenAI:
+
+    - Speech-to-text
+    - Text-to-speech
+
+Why?
+----
+OpenRouter provides an OpenAI-compatible Chat Completions API.
+The application therefore does not need to use the OpenAI Responses API
+for the text-generation pipeline.
+
+This also fixes the previous error:
+
+    'AsyncOpenAI' object has no attribute 'responses'
+
+The free OpenRouter router can expose different models/providers with
+different structured-output capabilities, so this implementation asks the
+model for strict JSON in the prompt and validates the result locally with
+Pydantic.
+
+IMPORTANT
+---------
+Never put OPENROUTER_API_KEY or OPENAI_API_KEY in source code.
+Set them as environment variables in Render.
 """
 
 import json
@@ -35,37 +50,85 @@ from app.schemas.ai_evaluation import EvaluationDraft
 from app.schemas.candidate import CandidateProfile
 from app.schemas.job import JobProfile
 
+
 settings = get_settings()
 
 
 class AIServiceError(Exception):
-    """Raised for any failure talking to the AI provider or parsing its output."""
+    """Raised for AI provider failures or invalid AI output."""
 
+
+# ============================================================================
+# QUESTION GENERATION SCHEMA
+# ============================================================================
 
 QUESTION_SCHEMA = {
     "type": "object",
     "properties": {
-        "question": {"type": "string"},
-        "topic": {"type": "string"},
-        "difficulty": {"type": "integer"},
-        "isFollowUp": {"type": "boolean"},
-        "targetClaim": {"type": ["string", "null"]},
+        "question": {
+            "type": "string",
+        },
+        "topic": {
+            "type": "string",
+        },
+        "difficulty": {
+            "type": "integer",
+        },
+        "isFollowUp": {
+            "type": "boolean",
+        },
+        "targetClaim": {
+            "type": ["string", "null"],
+        },
     },
-    "required": ["question", "topic", "difficulty", "isFollowUp", "targetClaim"],
+    "required": [
+        "question",
+        "topic",
+        "difficulty",
+        "isFollowUp",
+        "targetClaim",
+    ],
     "additionalProperties": False,
 }
+
+
+# ============================================================================
+# ANSWER ANALYSIS SCHEMA
+# ============================================================================
 
 ANALYSIS_SCHEMA = {
     "type": "object",
     "properties": {
-        "quality": {"type": "integer"},
-        "strengths": {"type": "array", "items": {"type": "string"}},
-        "weaknesses": {"type": "array", "items": {"type": "string"}},
-        "isRelevant": {"type": "boolean"},
-        "hasContradiction": {"type": "boolean"},
-        "followUpNeeded": {"type": "boolean"},
-        "followUpReason": {"type": ["string", "null"]},
-        "missingEvidence": {"type": ["string", "null"]},
+        "quality": {
+            "type": "integer",
+        },
+        "strengths": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "weaknesses": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "isRelevant": {
+            "type": "boolean",
+        },
+        "hasContradiction": {
+            "type": "boolean",
+        },
+        "followUpNeeded": {
+            "type": "boolean",
+        },
+        "followUpReason": {
+            "type": ["string", "null"],
+        },
+        "missingEvidence": {
+            "type": ["string", "null"],
+        },
     },
     "required": [
         "quality",
@@ -80,16 +143,56 @@ ANALYSIS_SCHEMA = {
     "additionalProperties": False,
 }
 
+
+# ============================================================================
+# CANDIDATE PROFILE SCHEMA
+# ============================================================================
+
 CANDIDATE_PROFILE_SCHEMA = {
     "type": "object",
     "properties": {
-        "skills": {"type": "array", "items": {"type": "string"}},
-        "education": {"type": "array", "items": {"type": "string"}},
-        "experience": {"type": "array", "items": {"type": "string"}},
-        "projects": {"type": "array", "items": {"type": "string"}},
-        "technologies": {"type": "array", "items": {"type": "string"}},
-        "achievements": {"type": "array", "items": {"type": "string"}},
-        "claims": {"type": "array", "items": {"type": "string"}},
+        "skills": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "education": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "experience": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "projects": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "technologies": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "achievements": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "claims": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
     },
     "required": [
         "skills",
@@ -103,16 +206,44 @@ CANDIDATE_PROFILE_SCHEMA = {
     "additionalProperties": False,
 }
 
+
+# ============================================================================
+# JOB PROFILE SCHEMA
+# ============================================================================
+
 JOB_PROFILE_SCHEMA = {
     "type": "object",
     "properties": {
-        "role": {"type": ["string", "null"]},
-        "company": {"type": ["string", "null"]},
-        "industry": {"type": ["string", "null"]},
-        "requiredSkills": {"type": "array", "items": {"type": "string"}},
-        "preferredSkills": {"type": "array", "items": {"type": "string"}},
-        "responsibilities": {"type": "array", "items": {"type": "string"}},
-        "seniority": {"type": ["string", "null"]},
+        "role": {
+            "type": ["string", "null"],
+        },
+        "company": {
+            "type": ["string", "null"],
+        },
+        "industry": {
+            "type": ["string", "null"],
+        },
+        "requiredSkills": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "preferredSkills": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "responsibilities": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "seniority": {
+            "type": ["string", "null"],
+        },
     },
     "required": [
         "role",
@@ -126,23 +257,65 @@ JOB_PROFILE_SCHEMA = {
     "additionalProperties": False,
 }
 
+
+# ============================================================================
+# EVALUATION SCHEMA
+# ============================================================================
+
 EVALUATION_SCHEMA = {
     "type": "object",
     "properties": {
-        "knowledgeScore": {"type": "integer"},
-        "knowledgeEvidence": {"type": "string"},
-        "communicationScore": {"type": "integer"},
-        "communicationEvidence": {"type": "string"},
-        "relevanceScore": {"type": "integer"},
-        "relevanceEvidence": {"type": "string"},
-        "problemSolvingScore": {"type": "integer"},
-        "problemSolvingEvidence": {"type": "string"},
-        "interviewHandlingScore": {"type": "integer"},
-        "interviewHandlingEvidence": {"type": "string"},
-        "strengths": {"type": "array", "items": {"type": "string"}},
-        "weaknesses": {"type": "array", "items": {"type": "string"}},
-        "recommendedPractice": {"type": "array", "items": {"type": "string"}},
-        "improvedAnswer": {"type": ["string", "null"]},
+        "knowledgeScore": {
+            "type": "integer",
+        },
+        "knowledgeEvidence": {
+            "type": "string",
+        },
+        "communicationScore": {
+            "type": "integer",
+        },
+        "communicationEvidence": {
+            "type": "string",
+        },
+        "relevanceScore": {
+            "type": "integer",
+        },
+        "relevanceEvidence": {
+            "type": "string",
+        },
+        "problemSolvingScore": {
+            "type": "integer",
+        },
+        "problemSolvingEvidence": {
+            "type": "string",
+        },
+        "interviewHandlingScore": {
+            "type": "integer",
+        },
+        "interviewHandlingEvidence": {
+            "type": "string",
+        },
+        "strengths": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "weaknesses": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "recommendedPractice": {
+            "type": "array",
+            "items": {
+                "type": "string",
+            },
+        },
+        "improvedAnswer": {
+            "type": ["string", "null"],
+        },
     },
     "required": [
         "knowledgeScore",
@@ -164,165 +337,638 @@ EVALUATION_SCHEMA = {
 }
 
 
+# ============================================================================
+# AI CLIENT INTERFACE
+# ============================================================================
+
 class AIClient(Protocol):
-    """Interface the interview engine depends on. FakeAIClient implements this for tests."""
+    """
+    Interface used by the interview engine.
 
-    async def generate_question(self, *, system: str, user: str) -> QuestionGeneration: ...
+    FakeAIClient can implement this protocol for tests.
+    """
 
-    async def analyze_answer(self, *, system: str, user: str) -> AnswerAnalysis: ...
+    async def generate_question(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> QuestionGeneration:
+        ...
 
-    async def transcribe_audio(self, *, audio_bytes: bytes, filename: str) -> str: ...
+    async def analyze_answer(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> AnswerAnalysis:
+        ...
 
-    async def synthesize_speech(self, *, text: str) -> bytes: ...
+    async def transcribe_audio(
+        self,
+        *,
+        audio_bytes: bytes,
+        filename: str,
+    ) -> str:
+        ...
 
-    async def extract_candidate_profile(self, *, system: str, user: str) -> CandidateProfile: ...
+    async def synthesize_speech(
+        self,
+        *,
+        text: str,
+    ) -> bytes:
+        ...
 
-    async def extract_job_profile(self, *, system: str, user: str) -> JobProfile: ...
+    async def extract_candidate_profile(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> CandidateProfile:
+        ...
 
-    async def generate_evaluation(self, *, system: str, user: str) -> EvaluationDraft: ...
+    async def extract_job_profile(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> JobProfile:
+        ...
 
+    async def generate_evaluation(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> EvaluationDraft:
+        ...
+
+
+# ============================================================================
+# REAL AI CLIENT
+# ============================================================================
 
 class OpenAIClient:
+    """
+    ELEVORA AI provider.
+
+    Text:
+        OpenRouter
+
+    Voice:
+        OpenAI
+    """
+
     def __init__(self) -> None:
-        self._client: AsyncOpenAI | None = None  # lazy: importing this module needs no key
+        self._openrouter_client: AsyncOpenAI | None = None
+        self._openai_client: AsyncOpenAI | None = None
+
+    # ------------------------------------------------------------------------
+    # OPENROUTER CLIENT
+    # ------------------------------------------------------------------------
 
     @property
-    def client(self) -> AsyncOpenAI:
-        if self._client is None:
-            if not settings.openai_api_key:
-                raise AIServiceError(
-                    "OPENAI_API_KEY is not set. Add it to backend/.env before starting an interview."
-                )
-            self._client = AsyncOpenAI(api_key=settings.openai_api_key)
-        return self._client
+    def openrouter_client(self) -> AsyncOpenAI:
+        """
+        Lazy OpenRouter client.
 
-    async def _call(self, *, system: str, user: str, schema: dict, schema_name: str) -> dict:
-        try:
-            response = await self.client.responses.create(
-                model=settings.openai_model,
-                input=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": schema_name,
-                        "schema": schema,
-                        "strict": True,
-                    }
+        OpenRouter is OpenAI-compatible, so we can continue using the
+        openai Python SDK while changing only the API endpoint and key.
+        """
+
+        if self._openrouter_client is None:
+
+            if not settings.openrouter_api_key:
+                raise AIServiceError(
+                    "OPENROUTER_API_KEY is not set. "
+                    "Add it to the backend environment."
+                )
+
+            self._openrouter_client = AsyncOpenAI(
+                api_key=settings.openrouter_api_key,
+                base_url="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": settings.frontend_origin,
+                    "X-Title": "ELEVORA",
                 },
             )
-        except AIServiceError:
-            raise  # e.g. missing API key — already a clear message, don't wrap it further
-        except Exception as exc:  # the openai SDK raises its own exception hierarchy
-            raise AIServiceError(f"OpenAI request failed: {exc}") from exc
 
-        raw = getattr(response, "output_text", None)
-        if not raw:
-            raise AIServiceError("OpenAI response contained no text output.")
+        return self._openrouter_client
 
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise AIServiceError(f"OpenAI did not return valid JSON: {exc}") from exc
+    # ------------------------------------------------------------------------
+    # OPENAI CLIENT FOR VOICE ONLY
+    # ------------------------------------------------------------------------
 
-    async def generate_question(self, *, system: str, user: str) -> QuestionGeneration:
-        data = await self._call(
-            system=system, user=user, schema=QUESTION_SCHEMA, schema_name="question_generation"
-        )
-        try:
-            return QuestionGeneration.model_validate(data)
-        except Exception as exc:
-            raise AIServiceError(f"OpenAI question output failed validation: {exc}") from exc
-
-    async def analyze_answer(self, *, system: str, user: str) -> AnswerAnalysis:
-        data = await self._call(
-            system=system, user=user, schema=ANALYSIS_SCHEMA, schema_name="answer_analysis"
-        )
-        try:
-            return AnswerAnalysis.model_validate(data)
-        except Exception as exc:
-            raise AIServiceError(f"OpenAI analysis output failed validation: {exc}") from exc
-
-    async def transcribe_audio(self, *, audio_bytes: bytes, filename: str) -> str:
-        """Speech-to-text for a recorded answer.
-
-        UNVERIFIED (see module docstring): the (filename, bytes) tuple form
-        for the `file` parameter matches how the openai-python SDK documents
-        multipart file uploads elsewhere in its API (e.g. file uploads for
-        fine-tuning), but this specific call was never made against the real
-        endpoint.
+    @property
+    def openai_client(self) -> AsyncOpenAI:
         """
-        try:
-            transcript = await self.client.audio.transcriptions.create(
-                model=settings.openai_transcribe_model,
-                file=(filename, audio_bytes),
-            )
-        except AIServiceError:
-            raise
-        except Exception as exc:
-            raise AIServiceError(f"OpenAI transcription failed: {exc}") from exc
+        Lazy OpenAI client.
 
-        text = getattr(transcript, "text", None)
-        if text is None:
-            raise AIServiceError("OpenAI transcription response had no 'text' field.")
-        return text
-
-    async def synthesize_speech(self, *, text: str) -> bytes:
-        """Text-to-speech for the current interview question.
-
-        UNVERIFIED (see module docstring). `response.aread()` is my best
-        understanding of how to pull raw bytes off the async binary response
-        the SDK returns for this endpoint; if the installed SDK version
-        exposes a different accessor, this will raise AIServiceError with
-        the underlying exception message rather than silently returning
-        garbage — check that message first if this breaks.
+        This is ONLY used for:
+            - speech-to-text
+            - text-to-speech
         """
-        try:
-            response = await self.client.audio.speech.create(
-                model=settings.openai_tts_model,
-                voice=settings.openai_tts_voice,
-                input=text,
-            )
-        except AIServiceError:
-            raise
-        except Exception as exc:
-            raise AIServiceError(f"OpenAI speech synthesis failed: {exc}") from exc
 
-        try:
-            return await response.aread()
-        except AttributeError as exc:
+        if self._openai_client is None:
+
+            if not settings.openai_api_key:
+                raise AIServiceError(
+                    "OPENAI_API_KEY is not set. "
+                    "It is required for voice transcription/TTS."
+                )
+
+            self._openai_client = AsyncOpenAI(
+                api_key=settings.openai_api_key
+            )
+
+        return self._openai_client
+
+    # ------------------------------------------------------------------------
+    # JSON PARSER
+    # ------------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_json(raw: str) -> dict:
+        """
+        Extract a JSON object from the model response.
+
+        Free/routed models do not necessarily expose identical structured
+        output support, so we validate JSON locally.
+
+        Supports:
+            {"key": "value"}
+
+        and:
+
+            ```json
+            {"key": "value"}
+            ```
+        """
+
+        if not raw or not raw.strip():
             raise AIServiceError(
-                f"Unexpected response shape from audio.speech.create(): {exc}"
+                "OpenRouter response contained no text output."
+            )
+
+        text = raw.strip()
+
+        # ------------------------------------------------------------
+        # Remove Markdown JSON fences.
+        # ------------------------------------------------------------
+
+        if text.startswith("```"):
+
+            lines = text.splitlines()
+
+            if lines:
+                first = lines[0].strip().lower()
+
+                if first in {
+                    "```",
+                    "```json",
+                }:
+                    lines = lines[1:]
+
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+
+            text = "\n".join(lines).strip()
+
+        # ------------------------------------------------------------
+        # First attempt: entire response is JSON.
+        # ------------------------------------------------------------
+
+        try:
+
+            parsed = json.loads(text)
+
+            if isinstance(parsed, dict):
+                return parsed
+
+        except json.JSONDecodeError:
+            pass
+
+        # ------------------------------------------------------------
+        # Second attempt: find JSON object inside surrounding text.
+        # ------------------------------------------------------------
+
+        start = text.find("{")
+        end = text.rfind("}")
+
+        if start >= 0 and end > start:
+
+            candidate = text[start : end + 1]
+
+            try:
+
+                parsed = json.loads(candidate)
+
+                if isinstance(parsed, dict):
+                    return parsed
+
+            except json.JSONDecodeError:
+                pass
+
+        raise AIServiceError(
+            "OpenRouter returned invalid JSON. "
+            f"Raw response: {raw[:1000]}"
+        )
+
+    # ------------------------------------------------------------------------
+    # JSON INSTRUCTION
+    # ------------------------------------------------------------------------
+
+    @staticmethod
+    def _json_instruction(
+        schema: dict,
+        schema_name: str,
+    ) -> str:
+        """
+        Add the expected JSON structure to the system prompt.
+
+        This avoids depending on provider-specific structured-output
+        support when using the free router.
+        """
+
+        schema_text = json.dumps(
+            schema,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+        return (
+            "\n\n"
+            "OUTPUT REQUIREMENTS:\n"
+            f"You are returning data for the '{schema_name}' schema.\n"
+            "\n"
+            "Return ONLY one valid JSON object.\n"
+            "Do NOT use Markdown.\n"
+            "Do NOT use ``` fences.\n"
+            "Do NOT add explanations before the JSON.\n"
+            "Do NOT add explanations after the JSON.\n"
+            "Do NOT add extra keys.\n"
+            "Use exactly the keys and types defined below.\n"
+            "\n"
+            "JSON Schema:\n"
+            f"{schema_text}"
+        )
+
+    # ------------------------------------------------------------------------
+    # GENERIC OPENROUTER CALL
+    # ------------------------------------------------------------------------
+
+    async def _call(
+        self,
+        *,
+        system: str,
+        user: str,
+        schema: dict,
+        schema_name: str,
+    ) -> dict:
+        """
+        Central text-generation method.
+
+        IMPORTANT:
+        The old code used:
+
+            self.client.responses.create(...)
+
+        That has been completely removed.
+
+        ELEVORA now uses:
+
+            OpenRouter
+                ↓
+            chat.completions.create()
+
+        """
+
+        system_with_schema = (
+            system
+            + self._json_instruction(
+                schema,
+                schema_name,
+            )
+        )
+
+        try:
+
+            response = (
+                await self.openrouter_client
+                .chat
+                .completions
+                .create(
+                    model=settings.openrouter_model,
+
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_with_schema,
+                        },
+                        {
+                            "role": "user",
+                            "content": user,
+                        },
+                    ],
+
+                    # Keep generation controlled.
+                    temperature=0.2,
+
+                    # Prevent unexpectedly huge responses.
+                    max_tokens=1200,
+                )
+            )
+
+        except AIServiceError:
+            raise
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                f"OpenRouter request failed: {exc}"
             ) from exc
 
-    async def extract_candidate_profile(self, *, system: str, user: str) -> CandidateProfile:
+        # ------------------------------------------------------------
+        # Safely read the OpenRouter response.
+        # ------------------------------------------------------------
+
+        try:
+
+            if not response.choices:
+                raise AIServiceError(
+                    "OpenRouter returned no choices."
+                )
+
+            raw = response.choices[0].message.content
+
+        except AIServiceError:
+            raise
+
+        except (AttributeError, IndexError, TypeError) as exc:
+
+            raise AIServiceError(
+                f"Unexpected OpenRouter response shape: {exc}"
+            ) from exc
+
+        return self._extract_json(
+            raw or ""
+        )
+
+    # =========================================================================
+    # QUESTION GENERATION
+    # =========================================================================
+
+    async def generate_question(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> QuestionGeneration:
+
+        data = await self._call(
+            system=system,
+            user=user,
+            schema=QUESTION_SCHEMA,
+            schema_name="question_generation",
+        )
+
+        try:
+
+            return QuestionGeneration.model_validate(
+                data
+            )
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                "OpenRouter question output failed validation: "
+                f"{exc}"
+            ) from exc
+
+    # =========================================================================
+    # ANSWER ANALYSIS
+    # =========================================================================
+
+    async def analyze_answer(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> AnswerAnalysis:
+
+        data = await self._call(
+            system=system,
+            user=user,
+            schema=ANALYSIS_SCHEMA,
+            schema_name="answer_analysis",
+        )
+
+        try:
+
+            return AnswerAnalysis.model_validate(
+                data
+            )
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                "OpenRouter analysis output failed validation: "
+                f"{exc}"
+            ) from exc
+
+    # =========================================================================
+    # SPEECH TO TEXT
+    # =========================================================================
+
+    async def transcribe_audio(
+        self,
+        *,
+        audio_bytes: bytes,
+        filename: str,
+    ) -> str:
+        """
+        Speech-to-text stays on OpenAI.
+
+        This method does NOT use OpenRouter.
+        """
+
+        try:
+
+            transcript = (
+                await self.openai_client
+                .audio
+                .transcriptions
+                .create(
+                    model=settings.openai_transcribe_model,
+                    file=(
+                        filename,
+                        audio_bytes,
+                    ),
+                )
+            )
+
+        except AIServiceError:
+            raise
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                f"OpenAI transcription failed: {exc}"
+            ) from exc
+
+        text = getattr(
+            transcript,
+            "text",
+            None,
+        )
+
+        if text is None:
+
+            raise AIServiceError(
+                "OpenAI transcription response "
+                "had no 'text' field."
+            )
+
+        return text
+
+    # =========================================================================
+    # TEXT TO SPEECH
+    # =========================================================================
+
+    async def synthesize_speech(
+        self,
+        *,
+        text: str,
+    ) -> bytes:
+        """
+        Text-to-speech stays on OpenAI.
+
+        This method does NOT use OpenRouter.
+        """
+
+        try:
+
+            response = (
+                await self.openai_client
+                .audio
+                .speech
+                .create(
+                    model=settings.openai_tts_model,
+                    voice=settings.openai_tts_voice,
+                    input=text,
+                )
+            )
+
+        except AIServiceError:
+            raise
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                f"OpenAI speech synthesis failed: {exc}"
+            ) from exc
+
+        try:
+
+            return await response.read()
+
+        except AttributeError as exc:
+
+            raise AIServiceError(
+                "Unexpected response shape from "
+                "audio.speech.create(): "
+                f"{exc}"
+            ) from exc
+
+    # =========================================================================
+    # CANDIDATE PROFILE
+    # =========================================================================
+
+    async def extract_candidate_profile(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> CandidateProfile:
+
         data = await self._call(
             system=system,
             user=user,
             schema=CANDIDATE_PROFILE_SCHEMA,
             schema_name="candidate_profile",
         )
-        try:
-            return CandidateProfile.model_validate(data)
-        except Exception as exc:
-            raise AIServiceError(f"OpenAI candidate-profile output failed validation: {exc}") from exc
 
-    async def extract_job_profile(self, *, system: str, user: str) -> JobProfile:
-        data = await self._call(
-            system=system, user=user, schema=JOB_PROFILE_SCHEMA, schema_name="job_profile"
-        )
         try:
-            return JobProfile.model_validate(data)
-        except Exception as exc:
-            raise AIServiceError(f"OpenAI job-profile output failed validation: {exc}") from exc
 
-    async def generate_evaluation(self, *, system: str, user: str) -> EvaluationDraft:
-        data = await self._call(
-            system=system, user=user, schema=EVALUATION_SCHEMA, schema_name="evaluation_draft"
-        )
-        try:
-            return EvaluationDraft.model_validate(data)
+            return CandidateProfile.model_validate(
+                data
+            )
+
         except Exception as exc:
-            raise AIServiceError(f"OpenAI evaluation output failed validation: {exc}") from exc
+
+            raise AIServiceError(
+                "OpenRouter candidate-profile output "
+                f"failed validation: {exc}"
+            ) from exc
+
+    # =========================================================================
+    # JOB PROFILE
+    # =========================================================================
+
+    async def extract_job_profile(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> JobProfile:
+
+        data = await self._call(
+            system=system,
+            user=user,
+            schema=JOB_PROFILE_SCHEMA,
+            schema_name="job_profile",
+        )
+
+        try:
+
+            return JobProfile.model_validate(
+                data
+            )
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                "OpenRouter job-profile output "
+                f"failed validation: {exc}"
+            ) from exc
+
+    # =========================================================================
+    # FINAL EVALUATION
+    # =========================================================================
+
+    async def generate_evaluation(
+        self,
+        *,
+        system: str,
+        user: str,
+    ) -> EvaluationDraft:
+
+        data = await self._call(
+            system=system,
+            user=user,
+            schema=EVALUATION_SCHEMA,
+            schema_name="evaluation_draft",
+        )
+
+        try:
+
+            return EvaluationDraft.model_validate(
+                data
+            )
+
+        except Exception as exc:
+
+            raise AIServiceError(
+                "OpenRouter evaluation output "
+                f"failed validation: {exc}"
+            ) from exc
