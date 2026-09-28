@@ -6,7 +6,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Central app configuration, loaded from environment variables / .env."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
     env: str = "development"
 
@@ -22,17 +25,25 @@ class Settings(BaseSettings):
     cookie_name: str = "elevora_session"
     cookie_samesite: str = "lax"
 
-    # Phase 2: AI interview engine
+    # =========================================================================
+    # TEXT AI — OpenRouter
+    # =========================================================================
+
     openrouter_api_key: str = ""
     openrouter_model: str = "openrouter/free"
-    # Phase 3: voice
+
+    # =========================================================================
+    # VOICE AI — OpenAI
+    # =========================================================================
+
+    openai_api_key: str = ""
     openai_transcribe_model: str = "gpt-4o-mini-transcribe"
     openai_tts_model: str = "gpt-4o-mini-tts"
     openai_tts_voice: str = "alloy"
 
     @property
     def cookie_secure(self) -> bool:
-        # Secure cookies require HTTPS; only enforce in non-development environments.
+        """Secure cookies require HTTPS in non-development environments."""
         return self.env != "development"
 
 
