@@ -586,8 +586,9 @@ class OpenAIClient:
         """
         Add the expected JSON structure to the system prompt.
 
-        This avoids depending on provider-specific structured-output
-        support when using the free router.
+        Native JSON mode is also enabled in `_call()`. Keeping the schema
+        in the prompt gives the model the exact field/type contract while
+        `response_format` prevents prose responses.
         """
 
         schema_text = json.dumps(
@@ -671,11 +672,18 @@ class OpenAIClient:
                         },
                     ],
 
-                    # Keep generation controlled.
-                    temperature=0.2,
+                    # IMPORTANT:
+                    # Native JSON mode prevents the model from returning
+                    # explanations/reasoning as the main response.
+                    # The previous implementation relied only on prompt
+                    # instructions, which caused invalid JSON responses.
+                    response_format={"type": "json_object"},
 
-                    # Prevent unexpectedly huge responses.
-                    max_tokens=1200,
+                    # Keep generation controlled.
+                    temperature=0.1,
+
+                    # Enough room for candidate/job/evaluation JSON.
+                    max_tokens=2000,
                 )
             )
 
