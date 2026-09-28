@@ -9,7 +9,7 @@ bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
 python-dotenv==1.0.1
-openai==1.54.4
+openai==1.66.3
 
 # Phase 5: resume/JD parsing
 PyMuPDF==1.28.2
