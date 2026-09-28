@@ -23,9 +23,8 @@ class Settings(BaseSettings):
     cookie_samesite: str = "lax"
 
     # Phase 2: AI interview engine
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
-
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openrouter/free"
     # Phase 3: voice
     openai_transcribe_model: str = "gpt-4o-mini-transcribe"
     openai_tts_model: str = "gpt-4o-mini-tts"
