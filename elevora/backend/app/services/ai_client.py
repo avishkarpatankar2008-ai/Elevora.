@@ -28,10 +28,12 @@ This also fixes the previous error:
 
     'AsyncOpenAI' object has no attribute 'responses'
 
-The free OpenRouter router can expose different models/providers with
-different structured-output capabilities, so this implementation asks the
-model for strict JSON in the prompt and validates the result locally with
-Pydantic.
+OpenRouter supports structured JSON responses through the OpenAI-compatible
+Chat Completions API. This implementation requests a JSON Schema response,
+requires the selected provider to support the requested parameters, disables
+reasoning output when supported, and validates the result locally with Pydantic.
+A defensive normalizer also handles accidental single-key wrappers from routed
+models.
 
 IMPORTANT
 ---------
@@ -489,22 +491,12 @@ class OpenAIClient:
 
     @staticmethod
     def _extract_json(raw: str) -> dict:
+        """Parse a JSON object from an OpenRouter response.
+
+        The normal path is native structured output. The parser is intentionally
+        defensive because free/routed models can occasionally add markdown
+        fences or surrounding text.
         """
-        Extract a JSON object from the model response.
-
-        Free/routed models do not necessarily expose identical structured
-        output support, so we validate JSON locally.
-
-        Supports:
-            {"key": "value"}
-
-        and:
-
-            ```json
-            {"key": "value"}
-            ```
-        """
-
         if not raw or not raw.strip():
             raise AIServiceError(
                 "OpenRouter response contained no text output."
@@ -512,67 +504,88 @@ class OpenAIClient:
 
         text = raw.strip()
 
-        # ------------------------------------------------------------
-        # Remove Markdown JSON fences.
-        # ------------------------------------------------------------
-
+        # Remove a markdown JSON fence if a provider ignores the format hint.
         if text.startswith("```"):
-
             lines = text.splitlines()
-
-            if lines:
-                first = lines[0].strip().lower()
-
-                if first in {
-                    "```",
-                    "```json",
-                }:
-                    lines = lines[1:]
-
+            if lines and lines[0].strip().lower() in {"```", "```json"}:
+                lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
-
             text = "\n".join(lines).strip()
 
-        # ------------------------------------------------------------
-        # First attempt: entire response is JSON.
-        # ------------------------------------------------------------
-
+        # First: the complete response is JSON.
         try:
-
             parsed = json.loads(text)
-
             if isinstance(parsed, dict):
                 return parsed
-
         except json.JSONDecodeError:
             pass
 
-        # ------------------------------------------------------------
-        # Second attempt: find JSON object inside surrounding text.
-        # ------------------------------------------------------------
-
+        # Second: decode the first complete JSON object in surrounding text.
+        decoder = json.JSONDecoder()
         start = text.find("{")
-        end = text.rfind("}")
-
-        if start >= 0 and end > start:
-
-            candidate = text[start : end + 1]
-
+        if start >= 0:
             try:
-
-                parsed = json.loads(candidate)
-
+                parsed, _ = decoder.raw_decode(text[start:])
                 if isinstance(parsed, dict):
                     return parsed
-
             except json.JSONDecodeError:
                 pass
 
         raise AIServiceError(
             "OpenRouter returned invalid JSON. "
-            f"Raw response: {raw[:1000]}"
+            f"Raw response: {raw[:1500]}"
         )
+
+    @staticmethod
+    def _normalize_output(data: dict, schema: dict, schema_name: str) -> dict:
+        """Normalize common accidental wrapper objects.
+
+        Expected:
+            {"question": "...", ...}
+
+        Some routed models occasionally return:
+            {"question": {"question": "...", ...}}
+
+        or:
+            {"question_generation": {"question": "...", ...}}
+
+        We unwrap only when the inner object clearly matches the expected
+        schema. We never blindly unwrap arbitrary data.
+        """
+        if not isinstance(data, dict):
+            raise AIServiceError("OpenRouter JSON output is not an object.")
+
+        expected = set(schema.get("properties", {}).keys())
+
+        # Already in the expected shape.
+        if expected.intersection(data.keys()):
+            # Special case: the field "question" is expected to be a string,
+            # but a model may accidentally place the whole object inside it.
+            question_value = data.get("question")
+            if (
+                isinstance(question_value, dict)
+                and set(question_value.keys()).intersection(expected)
+            ):
+                data = question_value
+            else:
+                return data
+
+        # Common named wrapper: {"question_generation": {...}}, etc.
+        if len(data) == 1:
+            only_value = next(iter(data.values()))
+            only_key = next(iter(data.keys()))
+
+            if (
+                isinstance(only_value, dict)
+                and (
+                    only_key == schema_name
+                    or expected.intersection(only_value.keys())
+                )
+            ):
+                return only_value
+
+        return data
 
     # ------------------------------------------------------------------------
     # JSON INSTRUCTION
@@ -586,9 +599,8 @@ class OpenAIClient:
         """
         Add the expected JSON structure to the system prompt.
 
-        Native JSON mode is also enabled in `_call()`. Keeping the schema
-        in the prompt gives the model the exact field/type contract while
-        `response_format` prevents prose responses.
+        The schema is included in the prompt as a compatibility fallback.
+        Native JSON Schema structured output is also requested in `_call()`.
         """
 
         schema_text = json.dumps(
@@ -626,41 +638,28 @@ class OpenAIClient:
         schema: dict,
         schema_name: str,
     ) -> dict:
+        """Call OpenRouter and return validated-shaped JSON data.
+
+        Uses:
+        - OpenRouter Chat Completions
+        - native JSON Schema response_format
+        - provider=require_parameters so the routed provider must support
+          the requested response format
+        - reasoning exclusion where supported
+        - local JSON parsing + wrapper normalization
         """
-        Central text-generation method.
-
-        IMPORTANT:
-        The old code used:
-
-            self.client.responses.create(...)
-
-        That has been completely removed.
-
-        ELEVORA now uses:
-
-            OpenRouter
-                ↓
-            chat.completions.create()
-
-        """
-
         system_with_schema = (
             system
-            + self._json_instruction(
-                schema,
-                schema_name,
-            )
+            + self._json_instruction(schema, schema_name)
         )
 
         try:
-
             response = (
                 await self.openrouter_client
                 .chat
                 .completions
                 .create(
                     model=settings.openrouter_model,
-
                     messages=[
                         {
                             "role": "system",
@@ -671,55 +670,75 @@ class OpenAIClient:
                             "content": user,
                         },
                     ],
-
-                    # IMPORTANT:
-                    # Native JSON mode prevents the model from returning
-                    # explanations/reasoning as the main response.
-                    # The previous implementation relied only on prompt
-                    # instructions, which caused invalid JSON responses.
-                    response_format={"type": "json_object"},
-
-                    # Keep generation controlled.
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema_name,
+                            "strict": True,
+                            "schema": schema,
+                        },
+                    },
                     temperature=0.1,
-
-                    # Enough room for candidate/job/evaluation JSON.
                     max_tokens=2000,
+                    # OpenRouter-specific parameters are sent through
+                    # extra_body so older openai SDK versions remain usable.
+                    extra_body={
+                        "provider": {
+                            "require_parameters": True,
+                        },
+                        "reasoning": {
+                            "exclude": True,
+                        },
+                    },
                 )
             )
 
-        except AIServiceError:
-            raise
-
         except Exception as exc:
-
             raise AIServiceError(
                 f"OpenRouter request failed: {exc}"
             ) from exc
 
-        # ------------------------------------------------------------
-        # Safely read the OpenRouter response.
-        # ------------------------------------------------------------
-
         try:
-
             if not response.choices:
                 raise AIServiceError(
                     "OpenRouter returned no choices."
                 )
 
-            raw = response.choices[0].message.content
+            message = response.choices[0].message
+            raw = getattr(message, "content", None)
+
+            # Some reasoning-capable providers expose the useful content in
+            # a reasoning field despite an empty content field. We only use
+            # it as a last-resort JSON source.
+            if not raw:
+                reasoning = getattr(message, "reasoning", None)
+                if isinstance(reasoning, str) and reasoning.strip():
+                    raw = reasoning
+
+            if not raw:
+                finish_reason = getattr(
+                    response.choices[0],
+                    "finish_reason",
+                    None,
+                )
+                raise AIServiceError(
+                    "OpenRouter returned no text output. "
+                    f"finish_reason={finish_reason!r}"
+                )
 
         except AIServiceError:
             raise
-
         except (AttributeError, IndexError, TypeError) as exc:
-
             raise AIServiceError(
                 f"Unexpected OpenRouter response shape: {exc}"
             ) from exc
 
-        return self._extract_json(
-            raw or ""
+        data = self._extract_json(raw)
+
+        return self._normalize_output(
+            data,
+            schema,
+            schema_name,
         )
 
     # =========================================================================
