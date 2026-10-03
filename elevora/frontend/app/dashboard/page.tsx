@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { HistoryTable } from "@/components/HistoryTable";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ScoreRing } from "@/components/ScoreRing";
-import { Skeleton, SkeletonCard } from "@/components/Skeleton";
+import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import { StatCard } from "@/components/StatCard";
 import { DimensionRadar } from "@/components/charts/DimensionRadar";
 import { ScoreTrendChart } from "@/components/charts/ScoreTrendChart";
@@ -245,10 +245,7 @@ function Dashboard() {
 
         <div className="mt-4">
           {isLoading ? (
-            <div className="space-y-4">
-              <SkeletonCard lines={2} />
-              <SkeletonCard lines={2} />
-            </div>
+            <SkeletonRows rows={3} />
           ) : (
             <HistoryTable interviews={interviews} reports={reports} />
           )}

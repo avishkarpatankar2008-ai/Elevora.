@@ -260,7 +260,7 @@ function ReportView({
   return (
     <div className="mt-6 space-y-5">
       {/* Headline ------------------------------------------------------- */}
-      <Card className="flex flex-col items-center gap-7 sm:flex-row sm:items-center">
+      <Card variant="elevated" className="flex flex-col items-center gap-7 sm:flex-row sm:items-center">
         <ScoreRing score={report.overallScore} size={176} />
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <p className="eyebrow">Overall performance</p>

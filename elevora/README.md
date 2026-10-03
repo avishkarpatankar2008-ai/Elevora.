@@ -321,6 +321,9 @@ accents — defined once and consumed everywhere:
   changes carry text, icons and ARIA).
 - Green appears only as a genuine system status (for example "Camera active");
   it is never used decoratively.
+- Icons are inline stroke SVGs (1.6–2px stroke, `currentColor`) in a single
+  visual language, so the app carries no icon-library dependency and every icon
+  inherits the palette and focus state.
 
 ## Known gaps carried over
 

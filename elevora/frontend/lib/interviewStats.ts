@@ -142,15 +142,3 @@ export function applyHistoryQuery(
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
-
-/** Minutes a completed interview took, derived from its turn timestamps. */
-export function sessionMinutes(
-  interview: Interview,
-  turns: { createdAt: string }[]
-): number | null {
-  if (!interview.startedAt || turns.length === 0) return null;
-  const start = new Date(interview.startedAt).getTime();
-  const last = Math.max(...turns.map((turn) => new Date(turn.createdAt).getTime()));
-  if (!Number.isFinite(start) || !Number.isFinite(last) || last <= start) return null;
-  return Math.max(1, Math.round((last - start) / 60000));
-}
