@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { authApi } from "./api";
-import type { User } from "./types";
+import type { User, UserPreferences } from "./types";
 
 interface AuthContextValue {
   user: User | null;
@@ -11,6 +11,7 @@ interface AuthContextValue {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  updateProfile: (data: { name?: string; preferences?: Partial<UserPreferences> }) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -43,12 +44,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await authApi.logout();
-    setUser(null);
+    try {
+      await authApi.logout();
+    } finally {
+      // Even if the request failed (offline, expired cookie), the UI must not
+      // keep showing a session the user asked to end.
+      setUser(null);
+    }
   }, []);
 
+  const updateProfile = useCallback(
+    async (data: { name?: string; preferences?: Partial<UserPreferences> }) => {
+      const updated = await authApi.updateMe(data);
+      setUser(updated);
+      return updated;
+    },
+    []
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refresh }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refresh, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

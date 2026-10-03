@@ -1,7 +1,26 @@
+export type UserDifficulty = "easy" | "medium" | "hard";
+
 export interface UserPreferences {
   language: string;
-  defaultDifficulty: string;
+  defaultDifficulty: UserDifficulty;
+  /** Speak each new question aloud automatically when it arrives. */
+  autoPlayQuestion: boolean;
+  /** Start sessions with the self-view camera already enabled. */
+  cameraEnabledByDefault: boolean;
 }
+
+export const LANGUAGE_OPTIONS = [
+  { value: "English", label: "English" },
+  { value: "Hindi", label: "Hindi" },
+  { value: "Marathi", label: "Marathi" },
+] as const;
+
+export const EXPERIENCE_LEVELS = [
+  { value: "fresher", label: "Fresher / student" },
+  { value: "entry-level", label: "Entry level (0–2 yrs)" },
+  { value: "mid-level", label: "Mid level (2–5 yrs)" },
+  { value: "senior", label: "Senior (5+ yrs)" },
+] as const;
 
 export interface User {
   id: string;
@@ -153,6 +172,8 @@ export interface InterviewReport {
   interviewId: string;
   overallScore: number;
   categoryScores: Record<string, number>;
+  /** Effective share of the overall score per available dimension (0-1). */
+  weights: Record<string, number>;
   dimensions: Record<string, DimensionScore>;
   strengths: string[];
   weaknesses: string[];
@@ -214,6 +235,18 @@ export interface AudioAnswerResult extends AnswerResult {
   transcript: string;
 }
 
+export interface SpeechMetrics {
+  durationSeconds: number;
+  wordCount: number;
+  wordsPerMinute: number;
+  pauseCount: number;
+  averagePauseSeconds: number;
+  longestPauseSeconds: number;
+  fillerCount: number;
+  fillerRate: number;
+  repeatedWordCount: number;
+}
+
 export interface InterviewTurn {
   sequence: number;
   question: string;
@@ -222,6 +255,8 @@ export interface InterviewTurn {
   difficulty: number;
   isFollowUp: boolean;
   createdAt: string;
+  /** Present only for answers submitted by voice — measured from the real audio. */
+  speechMetrics?: SpeechMetrics | null;
 }
 
 export const INTERVIEW_CATEGORIES: { value: InterviewCategory; label: string }[] = [

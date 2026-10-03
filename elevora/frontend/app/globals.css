@@ -2,24 +2,157 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+/* ------------------------------------------------------------------ tokens */
+:root {
+  /* Surfaces */
+  --color-navy-950: 11 27 50; /* page background */
+  --color-navy-900: 13 30 76; /* primary navy */
+  --color-surface: 16 39 70;
+  --color-surface-2: 19 45 74;
+  --color-slate: 38 65 94;
+
+  /* Brand */
+  --color-blue: 131 166 206;
+  --color-plum: 196 140 179;
+  --color-blush: 229 201 215;
+
+  /* Text */
+  --color-text-primary: 247 244 246;
+  --color-text-secondary: 199 209 221;
+  --color-text-muted: 147 163 184;
+
+  /* Lines — stored as the blush triplet; alpha is applied by the theme so
+     that both `border-line` and `border-blush/40`-style modifiers work. */
+  --color-border: 229 201 215;
+
+  /* Feedback */
+  --color-success: 123 200 164;
+  --color-warning: 229 192 138;
+  --color-danger: 224 138 154;
+
+  color-scheme: dark;
+}
 
 @layer base {
-  html { @apply scroll-smooth bg-[#070812]; }
-  body { @apply bg-[#070812] text-white antialiased; }
-  ::selection { background: rgba(124,92,255,.35); color: white; }
-  :focus-visible { outline: 2px solid #8b7cff; outline-offset: 3px; }
+  html {
+    @apply scroll-smooth bg-base;
+  }
+
+  body {
+    /* Ambient lighting only: two wide, low-opacity washes plus a faint
+       vertical falloff. Fixed so it reads as lighting rather than scrolling
+       decoration. */
+    background-color: rgb(var(--color-navy-950));
+    background-image:
+      radial-gradient(60% 55% at 15% 0%, rgba(131, 166, 206, 0.14), transparent 62%),
+      radial-gradient(50% 50% at 85% 5%, rgba(196, 140, 179, 0.12), transparent 60%),
+      linear-gradient(180deg, rgba(13, 30, 76, 0.55) 0%, rgba(11, 27, 50, 0) 42%);
+    background-attachment: fixed;
+    @apply text-ink antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-ink;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgba(196, 140, 179, 0.32);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--color-blue));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* The scrollbar is part of the surface system, not the OS default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(131, 166, 206, 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(131, 166, 206, 0.28);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+
+  /* Motion is a garnish: users who ask for less get none of it. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
-  .glass { @apply border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl; }
-  .glass-strong { @apply border border-white/[0.11] bg-white/[0.055] backdrop-blur-2xl; }
-  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-300/80; }
-  .muted { @apply text-white/55; }
-  .grid-bg {
-    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
-    background-size: 42px 42px;
+  /* Surface levels -------------------------------------------------------- */
+  .surface-1 {
+    @apply rounded-2xl border border-line bg-surface/70 shadow-soft backdrop-blur-md;
   }
-  .glow { box-shadow: 0 0 80px rgba(111,83,255,.16); }
+  .surface-2 {
+    @apply rounded-2xl border border-line-strong bg-navy/60 shadow-raise backdrop-blur-xl;
+  }
+  .glass {
+    background: rgba(13, 30, 76, 0.55);
+    @apply border border-line backdrop-blur-xl;
+  }
+  .glass-strong {
+    background: rgba(19, 45, 74, 0.62);
+    @apply border border-line-strong backdrop-blur-2xl;
+  }
+
+  /* Typography ----------------------------------------------------------- */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-blue/90;
+  }
+  .muted {
+    @apply text-ink-soft;
+  }
+
+  /* Decorative ----------------------------------------------------------- */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(229, 201, 215, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(229, 201, 215, 0.05) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(70% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+  .brand-text {
+    @apply bg-gradient-to-r from-blue via-blue-soft to-plum bg-clip-text text-transparent;
+  }
+  .divider-brand {
+    @apply h-px w-full bg-brand-line opacity-40;
+  }
+  /* Skeleton shimmer used by every loading state. */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-white/[0.05];
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(229, 201, 215, 0.09),
+      transparent
+    );
+  }
 }

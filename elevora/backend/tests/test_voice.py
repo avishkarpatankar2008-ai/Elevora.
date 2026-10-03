@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import requires_audio_tooling
+
 pytestmark = pytest.mark.asyncio
 
 SHORT_PAYLOAD = {
@@ -159,6 +161,7 @@ def _make_real_audio_with_pause() -> bytes:
     return buf.getvalue()
 
 
+@requires_audio_tooling
 async def test_answer_audio_computes_and_stores_real_speech_metrics(
     client, fake_ai_client, user_payload
 ):

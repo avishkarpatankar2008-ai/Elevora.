@@ -1,76 +1,71 @@
 import type { FaceLandmarkerResult } from "@mediapipe/tasks-vision";
 
 /**
- * Client-side face-visibility/movement tracking for the interview room.
+ * Client-side face-visibility / movement tracking for the interview room.
  *
- * CONFIDENCE NOTE — read this before trusting the numbers this produces:
+ * Privacy invariant: video frames are analysed in this browser tab and are
+ * never uploaded. Only the aggregate rates below are sent to the API.
  *
- * The API calls below (FilesetResolver.forVisionTasks, FaceLandmarker.
- * createFromOptions, detectForVideo, the FaceLandmarkerResult shape) were
- * checked against the actual installed @mediapipe/tasks-vision@1.0.1
- * package's vision.d.ts in this sandbox — not recalled from training data.
- * That part is as solid as reading real source can make it.
+ * Honesty invariant: if the model can't load (offline, blocked CDN, no WebGL),
+ * the tracker reports `status === "failed"` and `getAggregate()` returns null,
+ * so the report shows "Not available" for webcam instead of a made-up number.
  *
- * What was NOT verified, because no camera or browser exists here:
- *   - That the model actually downloads and initializes correctly at
- *     runtime from the CDN URL below.
- *   - That detectForVideo() behaves as expected against a live video feed
- *     rather than a static image.
- *   - The "looking away" math below (see estimateForwardAlignment).
- *
- * This is, by a meaningful margin, the least-verified code in the entire
- * project — more uncertain than VoiceControls or CameraPreview, because
- * those wrap simple, long-stable browser APIs (getUserMedia,
- * MediaRecorder) I'm confident about independent of any package version.
- * This wraps a specific ML package version whose model files live on a
- * CDN I can't reach from here to confirm are still at this path.
- *
- * Fails silently everywhere on purpose: if this breaks, webcam metrics
- * just don't get submitted (Delivery/webcam stay "Not available" on the
- * report) rather than breaking the interview itself.
+ * Runtime sources (both self-hosted or configurable, nothing is hard-wired to
+ * a CDN we don't control):
+ *   - WASM runtime: /mediapipe/wasm, copied from the pinned
+ *     @mediapipe/tasks-vision package by scripts/copy-mediapipe-wasm.mjs.
+ *   - Model file: NEXT_PUBLIC_FACE_LANDMARKER_MODEL_URL, defaulting to the
+ *     official Google-hosted face_landmarker.task. Self-host it (see
+ *     .env.local.example) for offline or air-gapped deployments.
  */
 
-const WASM_BASE_URL =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
-const FACE_LANDMARKER_MODEL_URL =
+const WASM_BASE_URL = "/mediapipe/wasm";
+
+const DEFAULT_MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+
+const MODEL_URL = process.env.NEXT_PUBLIC_FACE_LANDMARKER_MODEL_URL || DEFAULT_MODEL_URL;
 
 // A face turned directly at the camera has a forward-alignment (see below)
 // close to 1. Below this threshold counts as "looking away" for one sample.
 const LOOKING_AWAY_THRESHOLD = 0.85;
 
 // Frame-to-frame landmark centroid displacement (in normalized 0-1
-// coordinates) above this counts as "movement" for one sample. Not
-// calibrated against real recordings.
+// coordinates) above this counts as "movement" for one sample. Deliberately
+// coarse: this measures "the candidate moved noticeably between samples",
+// not fidgeting micro-motion.
 const MOVEMENT_THRESHOLD = 0.015;
+
+/** Minimum samples before an aggregate is considered meaningful. */
+const MIN_SAMPLES = 3;
+
+export type TrackerStatus = "idle" | "initializing" | "ready" | "failed";
 
 /**
  * Approximates how directly the face points at the camera using the
  * (2,2) entry of the 4x4 facial transformation matrix MediaPipe provides.
  *
- * Why this specific entry, and why it's more robust than it looks: that
- * entry sits on the matrix diagonal, so it has the same flattened array
+ * That entry sits on the matrix diagonal, so it has the same flattened array
  * index (10) whether the matrix is row-major or column-major — the two
  * conventions only disagree on off-diagonal entries. For a rotation matrix
- * representing "how the canonical face is rotated to match the detected
- * face," that diagonal entry approximates the cosine of the angle between
- * the face's forward direction and the camera's viewing axis: close to 1
- * facing the camera, dropping as the head turns in ANY direction (yaw,
- * pitch, or both). Using this magnitude — rather than trying to recover a
- * signed yaw/pitch/roll — deliberately avoids needing to get the exact
- * row/column-major convention and axis-sign convention right, since a
- * mistake there would silently flip left/right or up/down without
- * crashing anything. This does mean the tracker can say "looking away"
- * without saying which way — an acceptable trade for something that
- * could not be checked against a real face.
+ * representing "how the canonical face is rotated to match the detected face",
+ * that diagonal entry approximates the cosine of the angle between the face's
+ * forward direction and the camera's viewing axis: close to 1 facing the
+ * camera, dropping as the head turns in any direction (yaw, pitch, or both).
+ * Using this magnitude — rather than recovering a signed yaw/pitch/roll —
+ * avoids depending on the exact axis-sign conventions, at the cost of not
+ * being able to say *which way* the candidate looked.
+ *
+ * Not calibrated against real recordings; treat "looking away" as a coarse
+ * signal, which is why the UI and report label it as an estimate.
  */
-function estimateForwardAlignment(result: FaceLandmarkerResult): number | null {
+export function estimateForwardAlignment(result: FaceLandmarkerResult): number | null {
   const matrix = result.facialTransformationMatrixes?.[0];
   if (!matrix || matrix.data.length < 16) return null;
-  return matrix.data[10]; // index 10 = row 2, col 2 either way (see above)
+  return matrix.data[10];
 }
 
-function landmarkCentroid(result: FaceLandmarkerResult): { x: number; y: number } | null {
+export function landmarkCentroid(result: FaceLandmarkerResult): { x: number; y: number } | null {
   const landmarks = result.faceLandmarks?.[0];
   if (!landmarks || landmarks.length === 0) return null;
   let x = 0;
@@ -91,8 +86,8 @@ export interface WebcamAnalyticsAggregate {
 
 export class WebcamAnalyticsTracker {
   private landmarker: import("@mediapipe/tasks-vision").FaceLandmarker | null = null;
-  private initFailed = false;
   private initPromise: Promise<void> | null = null;
+  private status: TrackerStatus = "idle";
 
   private totalSamples = 0;
   private faceVisibleSamples = 0;
@@ -100,41 +95,65 @@ export class WebcamAnalyticsTracker {
   private movementSamples = 0;
   private lastCentroid: { x: number; y: number } | null = null;
 
+  getStatus(): TrackerStatus {
+    return this.status;
+  }
+
+  getSampleCount(): number {
+    return this.totalSamples;
+  }
+
+  private async createLandmarker(delegate: "GPU" | "CPU") {
+    const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+    const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+    return FaceLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: MODEL_URL, delegate },
+      runningMode: "VIDEO",
+      numFaces: 1,
+      outputFacialTransformationMatrixes: true,
+    });
+  }
+
   private async ensureInitialized(): Promise<void> {
-    if (this.landmarker || this.initFailed) return;
+    if (this.landmarker || this.status === "failed") return;
     if (this.initPromise) return this.initPromise;
 
+    this.status = "initializing";
     this.initPromise = (async () => {
       try {
-        const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-        const filesetResolver = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
-        this.landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: { modelAssetPath: FACE_LANDMARKER_MODEL_URL, delegate: "GPU" },
-          runningMode: "VIDEO",
-          numFaces: 1,
-          outputFacialTransformationMatrixes: true,
-        });
+        this.landmarker = await this.createLandmarker("GPU");
       } catch {
-        this.initFailed = true;
+        // GPU delegate is unavailable on plenty of machines (no WebGL2, GPU
+        // blocklisted, headless browsers); CPU is slower but works.
+        try {
+          this.landmarker = await this.createLandmarker("CPU");
+        } catch {
+          this.status = "failed";
+          return;
+        }
       }
+      this.status = "ready";
     })();
 
     return this.initPromise;
   }
 
   /** Call roughly once per second with the interview room's video element.
-   * Safe to call even if initialization hasn't finished or has failed —
-   * it just no-ops. Never throws. */
+   * Safe to call before initialization finishes, or after it failed — it just
+   * no-ops. Never throws. */
   async sample(video: HTMLVideoElement): Promise<void> {
     try {
       await this.ensureInitialized();
-      if (!this.landmarker || video.readyState < 2) return;
+      if (!this.landmarker || video.readyState < 2 || video.videoWidth === 0) return;
 
       const result = this.landmarker.detectForVideo(video, performance.now());
       this.totalSamples += 1;
 
       const hasFace = (result.faceLandmarks?.length ?? 0) > 0;
-      if (!hasFace) return; // don't count alignment/movement for a frame with no face
+      if (!hasFace) {
+        this.lastCentroid = null; // don't measure movement across a gap
+        return;
+      }
 
       this.faceVisibleSamples += 1;
 
@@ -148,8 +167,7 @@ export class WebcamAnalyticsTracker {
         if (this.lastCentroid) {
           const dx = centroid.x - this.lastCentroid.x;
           const dy = centroid.y - this.lastCentroid.y;
-          const displacement = Math.sqrt(dx * dx + dy * dy);
-          if (displacement > MOVEMENT_THRESHOLD) this.movementSamples += 1;
+          if (Math.sqrt(dx * dx + dy * dy) > MOVEMENT_THRESHOLD) this.movementSamples += 1;
         }
         this.lastCentroid = centroid;
       }
@@ -159,14 +177,36 @@ export class WebcamAnalyticsTracker {
   }
 
   /** Returns the aggregate, or null if too little data was collected to be
-   * worth submitting (init failed, camera was off the whole time, etc.). */
+   * worth submitting (model failed to load, camera was off, session too short). */
   getAggregate(): WebcamAnalyticsAggregate | null {
-    if (this.totalSamples < 3) return null;
-    return {
-      faceVisibleRate: this.faceVisibleSamples / this.totalSamples,
-      lookingAwayRate: this.faceVisibleSamples > 0 ? this.lookingAwaySamples / this.faceVisibleSamples : 0,
-      movementRate: this.faceVisibleSamples > 0 ? this.movementSamples / this.faceVisibleSamples : 0,
-      sampledFrames: this.totalSamples,
-    };
+    return buildAggregate({
+      total: this.totalSamples,
+      faceVisible: this.faceVisibleSamples,
+      lookingAway: this.lookingAwaySamples,
+      movement: this.movementSamples,
+    });
   }
+}
+
+export interface SampleCounts {
+  total: number;
+  faceVisible: number;
+  lookingAway: number;
+  movement: number;
+}
+
+/**
+ * Pure aggregation, exported so the arithmetic can be tested without a camera
+ * or the MediaPipe runtime. Returns null when there is too little data to be
+ * meaningful — the report shows "Not available" rather than a number built
+ * from two frames.
+ */
+export function buildAggregate(counts: SampleCounts): WebcamAnalyticsAggregate | null {
+  if (counts.total < MIN_SAMPLES) return null;
+  return {
+    faceVisibleRate: counts.faceVisible / counts.total,
+    lookingAwayRate: counts.faceVisible > 0 ? counts.lookingAway / counts.faceVisible : 0,
+    movementRate: counts.faceVisible > 0 ? counts.movement / counts.faceVisible : 0,
+    sampledFrames: counts.total,
+  };
 }

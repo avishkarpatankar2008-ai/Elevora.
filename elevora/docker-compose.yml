@@ -1,0 +1,48 @@
+# ELEVORA — API + web + MongoDB.
+#
+#   cp backend/.env.example backend/.env    # fill in the real values
+#   docker compose up --build
+#
+# The web client talks to the API through its own origin (/api/* is proxied
+# server-side), so the session cookie stays first-party.
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides whatever MONGO_URI is in .env: inside the compose network the
+      # database is reachable by service name.
+      MONGO_URI: mongodb://mongo:27017
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "8000:8000"   # remove when a reverse proxy sits in front
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      # Server-side only: where the Next.js process should proxy /api/* to.
+      BACKEND_ORIGIN: http://api:8000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo_data:

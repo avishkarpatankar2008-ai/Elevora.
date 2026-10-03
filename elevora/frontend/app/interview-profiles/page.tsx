@@ -1,11 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/Alert";
+import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { EmptyState } from "@/components/EmptyState";
 import { Input } from "@/components/Input";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Select } from "@/components/Select";
+import { SkeletonCard } from "@/components/Skeleton";
 import { ApiError, profilesApi } from "@/lib/api";
 import type { InterviewProfile, InterviewProfileInput, ProfileDifficulty } from "@/lib/types";
 
@@ -32,6 +36,13 @@ const EMPTY_FORM = {
 };
 
 type FormState = typeof EMPTY_FORM;
+
+const TOGGLES: [keyof FormState, string, string][] = [
+  ["followUpEnabled", "Follow-up questions", "The interviewer digs into an answer instead of moving on."],
+  ["adaptiveDifficulty", "Adaptive difficulty", "Difficulty tracks how well you're answering."],
+  ["resumeGrounding", "Ground in your resume", "Questions can reference your uploaded resume."],
+  ["jdGrounding", "Ground in the job description", "Questions can reference the posting you uploaded."],
+];
 
 function toInput(form: FormState): InterviewProfileInput {
   return {
@@ -71,10 +82,12 @@ function ProfileForm({
   initial,
   onCancel,
   onSubmit,
+  title,
 }: {
   initial: FormState;
   onCancel: () => void;
   onSubmit: (input: InterviewProfileInput) => Promise<void>;
+  title: string;
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +98,7 @@ function ProfileForm({
     setError(null);
     const input = toInput(form);
     if (!input.name || !input.category || input.subjects.length === 0 || input.questionTypes.length === 0) {
-      setError("Name, category, at least one subject, and at least one question type are required.");
+      setError("A name, a category, at least one subject and at least one question type are required.");
       return;
     }
     setIsSubmitting(true);
@@ -99,59 +112,71 @@ function ProfileForm({
 
   return (
     <Card className="mt-4">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <Input
-          label="Name"
-          name="name"
-          placeholder="e.g. My Full Stack Interview"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
+      <h3 className="text-base font-semibold text-ink">{title}</h3>
+      <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Name"
+            name="name"
+            placeholder="Full stack interview"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Input
+            label="Category"
+            name="category"
+            placeholder="full-stack"
+            hint="A short slug used to group this profile."
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+          />
+        </div>
+
         <Input
           label="Description"
           name="description"
-          placeholder="e.g. React, Node.js, and MongoDB, adaptive difficulty."
+          placeholder="React, Node.js and MongoDB with adaptive difficulty."
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
-        <Input
-          label="Category"
-          name="category"
-          placeholder="e.g. full-stack"
-          value={form.category}
-          onChange={(e) => setForm({ ...form, category: e.target.value })}
-        />
-        <Input
-          label="Subjects (comma-separated)"
-          name="subjects"
-          placeholder="e.g. React, Node.js, MongoDB"
-          value={form.subjects}
-          onChange={(e) => setForm({ ...form, subjects: e.target.value })}
-        />
-        <Input
-          label="Question types (comma-separated)"
-          name="questionTypes"
-          placeholder="e.g. Technical, Scenario, Behavioral"
-          value={form.questionTypes}
-          onChange={(e) => setForm({ ...form, questionTypes: e.target.value })}
-        />
-        <Input
-          label="Interviewer style"
-          name="interviewerStyle"
-          placeholder="e.g. professional"
-          value={form.interviewerStyle}
-          onChange={(e) => setForm({ ...form, interviewerStyle: e.target.value })}
-        />
-        <Select
-          label="Difficulty"
-          name="difficulty"
-          value={form.difficulty}
-          onChange={(e) => setForm({ ...form, difficulty: e.target.value as ProfileDifficulty })}
-          options={DIFFICULTY_OPTIONS}
-        />
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="maxQuestions" className="text-sm font-medium text-ink-900">
-            Questions: {form.maxQuestions}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Subjects (comma-separated)"
+            name="subjects"
+            placeholder="React, Node.js, MongoDB"
+            value={form.subjects}
+            onChange={(e) => setForm({ ...form, subjects: e.target.value })}
+          />
+          <Input
+            label="Question types (comma-separated)"
+            name="questionTypes"
+            placeholder="Technical, Scenario, Behavioral"
+            value={form.questionTypes}
+            onChange={(e) => setForm({ ...form, questionTypes: e.target.value })}
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Interviewer style"
+            name="interviewerStyle"
+            placeholder="professional"
+            value={form.interviewerStyle}
+            onChange={(e) => setForm({ ...form, interviewerStyle: e.target.value })}
+          />
+          <Select
+            label="Difficulty"
+            name="difficulty"
+            value={form.difficulty}
+            onChange={(e) => setForm({ ...form, difficulty: e.target.value as ProfileDifficulty })}
+            options={DIFFICULTY_OPTIONS}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="maxQuestions" className="text-[13px] font-medium text-ink-soft">
+            Questions: <output htmlFor="maxQuestions">{form.maxQuestions}</output>
           </label>
           <input
             id="maxQuestions"
@@ -161,43 +186,66 @@ function ProfileForm({
             step={1}
             value={form.maxQuestions}
             onChange={(e) => setForm({ ...form, maxQuestions: Number(e.target.value) })}
-            className="accent-accent"
+            className="mt-2 w-full accent-[#83A6CE]"
           />
+          <p className="mt-1 text-xs text-ink-mute">
+            Roughly three minutes per question — 8 questions is about a 25 minute session.
+          </p>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          {(
-            [
-              ["followUpEnabled", "Follow-up questions"],
-              ["adaptiveDifficulty", "Adaptive difficulty"],
-              ["resumeGrounding", "Ground in resume"],
-              ["jdGrounding", "Ground in job description"],
-            ] as [keyof FormState, string][]
-          ).map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 text-sm text-ink-900">
+        <fieldset className="grid gap-2.5 sm:grid-cols-2">
+          <legend className="sr-only">Profile behaviour</legend>
+          {TOGGLES.map(([key, label, hint]) => (
+            <label
+              key={key}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-navy-950/30 p-3.5 transition-colors hover:border-line-strong"
+            >
               <input
                 type="checkbox"
                 checked={Boolean(form[key])}
                 onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
-                className="accent-accent"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-line-strong bg-navy-950 accent-[#83A6CE]"
               />
-              {label}
+              <span>
+                <span className="block text-sm font-medium text-ink">{label}</span>
+                <span className="mt-0.5 block text-xs leading-5 text-ink-mute">{hint}</span>
+              </span>
             </label>
           ))}
-        </div>
+        </fieldset>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <Alert tone="error">{error}</Alert>}
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button type="submit" isLoading={isSubmitting}>
             Save profile
           </Button>
-          <Button type="button" variant="secondary" onClick={onCancel}>
+          <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
         </div>
       </form>
     </Card>
+  );
+}
+
+function ProfileFacts({ profile }: { profile: InterviewProfile }) {
+  const facts = [
+    profile.difficulty === "adaptive" ? "Adaptive difficulty" : `Difficulty: ${profile.difficulty}`,
+    `${profile.maxQuestions} questions`,
+    profile.followUpEnabled ? "Follow-ups on" : "No follow-ups",
+    profile.resumeGrounding ? "Resume grounding" : null,
+    profile.jdGrounding ? "JD grounding" : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <ul className="mt-3 flex flex-wrap gap-1.5">
+      {facts.map((fact) => (
+        <li key={fact}>
+          <Badge tone="neutral">{fact}</Badge>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -207,15 +255,19 @@ function InterviewProfilesContent() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  function load() {
+  const load = useCallback(() => {
+    setError(null);
     profilesApi
       .list()
       .then(setProfiles)
-      .catch(() => setError("Couldn't load interview profiles. Try refreshing."));
-  }
+      .catch(() =>
+        setError("We couldn't load your interview profiles. Check your connection and try again.")
+      );
+  }, []);
 
-  useEffect(load, []);
+  useEffect(load, [load]);
 
   async function handleCreate(input: InterviewProfileInput) {
     await profilesApi.create(input);
@@ -233,6 +285,7 @@ function InterviewProfilesContent() {
     setDeletingId(id);
     try {
       await profilesApi.remove(id);
+      setConfirmingDeleteId(null);
       load();
     } catch {
       setError("Couldn't delete this profile. Try again.");
@@ -241,99 +294,177 @@ function InterviewProfilesContent() {
     }
   }
 
-  const custom = profiles?.filter((p) => !p.isSystem) ?? [];
-  const system = profiles?.filter((p) => p.isSystem) ?? [];
+  const custom = profiles?.filter((profile) => !profile.isSystem) ?? [];
+  const system = profiles?.filter((profile) => profile.isSystem) ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-navy-900">Interview profiles</h1>
-          <p className="mt-1 text-sm text-ink-600">
-            Reusable interview configurations — subjects, question types, pacing, and grounding.
+          <p className="eyebrow">Reusable setups</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+            Interview profiles
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-ink-soft">
+            A profile fixes the subjects, question types and pacing so a repeat session is comparable
+            to the last one. System profiles ship with ELEVORA; yours are private to your account.
           </p>
         </div>
         {!creating && (
-          <Button onClick={() => setCreating(true)}>Create custom profile</Button>
+          <Button onClick={() => setCreating(true)} className="sm:self-start">
+            Create custom profile
+          </Button>
         )}
       </div>
 
-      {error && <p className="mt-4 text-sm text-danger">{error}</p>}
-
-      {creating && (
-        <ProfileForm initial={EMPTY_FORM} onCancel={() => setCreating(false)} onSubmit={handleCreate} />
+      {error && (
+        <Alert tone="error" className="mt-5">
+          {error}
+        </Alert>
       )}
 
-      {!profiles && !error && <p className="mt-8 text-sm text-ink-600">Loading…</p>}
+      {creating && (
+        <ProfileForm
+          title="New interview profile"
+          initial={EMPTY_FORM}
+          onCancel={() => setCreating(false)}
+          onSubmit={handleCreate}
+        />
+      )}
+
+      {!profiles && !error && (
+        <div className="mt-8 space-y-4" aria-busy="true">
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+          <p className="sr-only" role="status">
+            Loading interview profiles…
+          </p>
+        </div>
+      )}
 
       {profiles && (
         <>
-          {custom.length > 0 && (
-            <section className="mt-8">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-600">
-                Your custom profiles
-              </h2>
+          <section className="mt-8">
+            <h2 className="text-sm font-semibold text-ink">Your custom profiles</h2>
+            {custom.length === 0 ? (
+              <div className="mt-3">
+                <EmptyState
+                  title="No custom profiles yet"
+                  description="Create one to fix a set of subjects, question types and pacing you want to repeat — useful when you're drilling one specific round."
+                  action={
+                    <Button variant="secondary" onClick={() => setCreating(true)}>
+                      Create your first profile
+                    </Button>
+                  }
+                />
+              </div>
+            ) : (
               <div className="mt-3 flex flex-col gap-4">
                 {custom.map((profile) =>
                   editingId === profile.id ? (
                     <ProfileForm
                       key={profile.id}
+                      title={`Editing ${profile.name}`}
                       initial={fromProfile(profile)}
                       onCancel={() => setEditingId(null)}
                       onSubmit={(input) => handleUpdate(profile.id, input)}
                     />
                   ) : (
                     <Card key={profile.id}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-navy-900">{profile.name}</p>
-                          <p className="mt-1 text-sm text-ink-600">{profile.description}</p>
-                          <p className="mt-2 text-xs text-ink-600">
-                            Subjects: {profile.subjects.join(", ")} · Types:{" "}
-                            {profile.questionTypes.join(", ")}
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-ink">{profile.name}</p>
+                            <Badge tone="blue">Custom</Badge>
+                          </div>
+                          {profile.description && (
+                            <p className="mt-1.5 text-sm leading-6 text-ink-soft">
+                              {profile.description}
+                            </p>
+                          )}
+                          <p className="mt-2 text-xs text-ink-mute">
+                            Subjects: {profile.subjects.join(", ") || "—"} · Types:{" "}
+                            {profile.questionTypes.join(", ") || "—"}
                           </p>
-                          <p className="mt-1 text-xs text-ink-600">
-                            {profile.difficulty === "adaptive" ? "Adaptive" : profile.difficulty} ·{" "}
-                            {profile.maxQuestions} questions
-                          </p>
+                          <ProfileFacts profile={profile} />
                         </div>
-                        <div className="flex shrink-0 gap-2">
-                          <Button variant="secondary" onClick={() => setEditingId(profile.id)}>
-                            Edit
-                          </Button>
-                          <Button
-                            variant="danger"
-                            isLoading={deletingId === profile.id}
-                            onClick={() => handleDelete(profile.id)}
-                          >
-                            Delete
-                          </Button>
+
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          {confirmingDeleteId === profile.id ? (
+                            <>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                isLoading={deletingId === profile.id}
+                                onClick={() => void handleDelete(profile.id)}
+                              >
+                                Confirm delete
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setConfirmingDeleteId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setEditingId(profile.id)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setConfirmingDeleteId(profile.id)}
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
+                      {confirmingDeleteId === profile.id && (
+                        <p className="mt-3 text-xs leading-5 text-warning">
+                          Interviews already created with this profile keep working — only the
+                          reusable setup is removed.
+                        </p>
+                      )}
                     </Card>
                   )
                 )}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
-          <section className="mt-8">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-600">
-              System profiles
-            </h2>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              {system.map((profile) => (
-                <Card key={profile.id}>
-                  <p className="font-medium text-navy-900">{profile.name}</p>
-                  <p className="mt-1 text-sm text-ink-600">{profile.description}</p>
-                  <p className="mt-2 text-xs text-ink-600">Subjects: {profile.subjects.join(", ")}</p>
-                  <p className="mt-1 text-xs text-ink-600">
-                    {profile.difficulty === "adaptive" ? "Adaptive" : profile.difficulty} ·{" "}
-                    {profile.maxQuestions} questions
-                  </p>
-                </Card>
-              ))}
-            </div>
+          <section className="mt-10">
+            <h2 className="text-sm font-semibold text-ink">System profiles</h2>
+            <p className="mt-1 text-xs text-ink-mute">
+              Ready-made setups for common interview types. Use one as-is or copy its settings into a
+              custom profile.
+            </p>
+            {system.length === 0 ? (
+              <p className="mt-3 text-sm text-ink-soft">No system profiles are available.</p>
+            ) : (
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                {system.map((profile) => (
+                  <Card key={profile.id}>
+                    <p className="font-medium text-ink">{profile.name}</p>
+                    {profile.description && (
+                      <p className="mt-1.5 text-sm leading-6 text-ink-soft">{profile.description}</p>
+                    )}
+                    <p className="mt-2 text-xs text-ink-mute">
+                      Subjects: {profile.subjects.join(", ") || "—"}
+                    </p>
+                    <ProfileFacts profile={profile} />
+                  </Card>
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}

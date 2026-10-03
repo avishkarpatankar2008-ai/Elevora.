@@ -1,8 +1,40 @@
-export function Logo({className=""}:{className?:string}){
- return <span className={`inline-flex items-center gap-2.5 ${className}`}>
-  <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-gradient-to-br from-violet-400 via-violet-600 to-indigo-700 shadow-[0_8px_30px_rgba(124,92,255,.3)]">
-   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 17 11.5 6l3 6 4.5-8" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="19" cy="4" r="2" fill="white"/></svg>
-  </span>
-  <span className="text-[18px] font-bold tracking-[-.03em] text-white">ELEVORA</span>
- </span>
+export function Logo({
+  className = "",
+  size = 32,
+  showWordmark = true,
+}: {
+  className?: string;
+  size?: number;
+  showWordmark?: boolean;
+}) {
+  return (
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      <span
+        className="grid place-items-center rounded-[11px] border border-line-strong bg-gradient-to-br from-blue/90 via-navy-900 to-plum/80 shadow-glow-blue"
+        style={{ width: size, height: size }}
+      >
+        <svg
+          width={size * 0.55}
+          height={size * 0.55}
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M5 17.5 11.5 6l3 6L19 5"
+            stroke="#0B1B32"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="19" cy="4.5" r="2" fill="#E5C9D7" />
+        </svg>
+      </span>
+      {showWordmark && (
+        <span className="text-[17px] font-bold tracking-[-0.02em] text-ink">
+          ELEVORA
+        </span>
+      )}
+    </span>
+  );
 }
