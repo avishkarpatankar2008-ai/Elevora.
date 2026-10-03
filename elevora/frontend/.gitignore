@@ -4,3 +4,6 @@ node_modules
 .env
 tsconfig.tsbuildinfo
 next-env.d.ts
+
+# MediaPipe runtime copied from node_modules by scripts/copy-mediapipe-wasm.mjs
+/public/mediapipe/

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
@@ -10,7 +11,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 export default function SignupPage() {
-  const { register } = useAuth();
+  const { register, user, isLoading } = useAuth();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,12 +19,20 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!isLoading && user) router.replace("/dashboard");
+  }, [isLoading, user, router]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (password.length < 8) {
+      setError("Choose a password with at least 8 characters.");
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
     try {
-      await register(name, email, password);
+      await register(name.trim(), email.trim(), password);
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
@@ -33,19 +42,18 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col justify-center px-6 py-16">
-      <h1 className="text-2xl font-semibold text-navy-900">Create your account</h1>
-      <p className="mt-2 text-sm text-ink-600">
-        Set up interview practice in under a minute.
-      </p>
+    <div className="mx-auto flex max-w-md flex-col justify-center px-5 py-16 sm:px-6">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink-900">Create your account</h1>
+      <p className="mt-2 text-sm text-ink-600">Set up interview practice in under a minute.</p>
 
       <Card className="mt-8">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
           <Input
             label="Full name"
             name="name"
             autoComplete="name"
             required
+            autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -67,10 +75,10 @@ export default function SignupPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            hint="At least 8 characters."
           />
-          <p className="-mt-3 text-xs text-ink-400">At least 8 characters.</p>
 
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && <Alert tone="error">{error}</Alert>}
 
           <Button type="submit" isLoading={isSubmitting}>
             Create account
@@ -80,7 +88,7 @@ export default function SignupPage() {
 
       <p className="mt-6 text-center text-sm text-ink-600">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-accent">
+        <Link href="/login" className="font-medium text-accent-300 hover:text-accent">
           Log in
         </Link>
       </p>

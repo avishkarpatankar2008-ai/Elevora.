@@ -2,24 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+}
 
 @layer base {
-  html { @apply scroll-smooth bg-[#070812]; }
-  body { @apply bg-[#070812] text-white antialiased; }
-  ::selection { background: rgba(124,92,255,.35); color: white; }
-  :focus-visible { outline: 2px solid #8b7cff; outline-offset: 3px; }
+  html {
+    @apply scroll-smooth bg-navy-950;
+  }
+  body {
+    @apply bg-navy-950 text-ink-900 antialiased;
+  }
+  /* Keyboard focus is always visible and always the same warm accent. */
+  :focus-visible {
+    outline: 2px solid #f08a3c;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: rgba(234, 88, 12, 0.32);
+    color: #fff;
+  }
+  /* Respect users who asked the OS to reduce motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
-  .glass { @apply border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl; }
-  .glass-strong { @apply border border-white/[0.11] bg-white/[0.055] backdrop-blur-2xl; }
-  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-300/80; }
-  .muted { @apply text-white/55; }
+  .glass {
+    @apply border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl;
+  }
+  .glass-strong {
+    @apply border border-white/[0.11] bg-white/[0.055] backdrop-blur-2xl;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-300/85;
+  }
+  .muted {
+    @apply text-ink-600;
+  }
   .grid-bg {
-    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
     background-size: 42px 42px;
   }
-  .glow { box-shadow: 0 0 80px rgba(111,83,255,.16); }
+  .glow {
+    box-shadow: 0 0 90px rgba(234, 88, 12, 0.13);
+  }
 }

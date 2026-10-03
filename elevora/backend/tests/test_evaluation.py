@@ -1,5 +1,7 @@
 import pytest
 
+from tests.conftest import requires_audio_tooling
+
 from app.services.evaluation import (
     WEIGHT_PROFILES,
     compute_confidence,
@@ -315,6 +317,7 @@ async def test_report_without_webcam_metrics_still_says_unavailable(
         "not" in body["dimensions"]["webcam"]["evidence"].lower()
 
 
+@requires_audio_tooling
 async def test_delivery_scored_when_voice_was_used(client, fake_ai_client, user_payload):
     """The realistic end-to-end path: answer by voice at least once (real
     audio decoded by ffmpeg, same as test_voice.py) -> complete the
@@ -354,3 +357,40 @@ async def test_delivery_scored_when_voice_was_used(client, fake_ai_client, user_
 
     assert body["dimensions"]["delivery"]["score"] is not None
     assert "1 voice answer" in body["dimensions"]["delivery"]["evidence"]
+
+
+# ---- report transparency: exposed weights ----------------------------------
+
+
+async def test_generated_report_exposes_renormalized_weights(
+    client, user_payload, fake_ai_client
+):
+    """The UI explains the overall score from these numbers, so they must match
+    the arithmetic that actually produced it."""
+    interview = await _complete_short_interview(client, fake_ai_client, user_payload)
+    interview_id = interview["id"]
+
+    fake_ai_client.queue_evaluation()
+    resp = await client.post(f"/interviews/{interview_id}/report")
+    assert resp.status_code == 200, resp.text
+    report = resp.json()
+
+    weights = report["weights"]
+    assert weights, "report must expose the weights used for the overall score"
+    assert set(weights).issubset(set(report["categoryScores"]))
+    assert abs(sum(weights.values()) - 1.0) < 0.01
+
+    # The overall score must equal the same weighted math those weights describe.
+    technical = WEIGHT_PROFILES["technical"]
+    available = {
+        name: report["dimensions"][name]["score"]
+        for name in report["dimensions"]
+        if report["dimensions"][name]["score"] is not None
+    }
+    total = sum(technical.get(name, 0.0) for name in available)
+    expected = round(
+        sum((score / 5) * technical.get(name, 0.0) for name, score in available.items())
+        / total
+        * 100
+    )
+    assert report["overallScore"] == expected

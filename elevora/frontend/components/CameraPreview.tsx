@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type CameraStatus =
   | "idle"
@@ -13,11 +13,13 @@ export type CameraStatus =
 interface CameraPreviewProps {
   enabled: boolean;
   onStatusChange?: (status: CameraStatus) => void;
-  /** Fired roughly once per second while the camera is active — Phase 7's
-   * hook point for client-side analytics (see lib/webcamAnalytics.ts). Not
-   * used at all if omitted; CameraPreview itself has no analytics logic. */
+  /** Fired roughly once per second while the camera is active — the hook point
+   * for client-side analytics (see lib/webcamAnalytics.ts). Not used at all if
+   * omitted; CameraPreview itself has no analytics logic. */
   onFrameSample?: (video: HTMLVideoElement) => void;
   sampleIntervalMs?: number;
+  /** Shown under the preview; describe what is (and isn't) done with the feed. */
+  footnote?: string;
 }
 
 /**
@@ -38,23 +40,27 @@ export function CameraPreview({
   onStatusChange,
   onFrameSample,
   sampleIntervalMs = 1000,
+  footnote = "Self-view only — frames never leave your browser.",
 }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<CameraStatus>("idle");
 
-  function updateStatus(next: CameraStatus) {
-    setStatus(next);
-    onStatusChange?.(next);
-  }
+  const updateStatus = useCallback(
+    (next: CameraStatus) => {
+      setStatus(next);
+      onStatusChange?.(next);
+    },
+    [onStatusChange]
+  );
 
-  function stopCamera() {
+  const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-  }
+  }, []);
 
-  async function startCamera() {
+  const startCamera = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       updateStatus("unavailable");
       return;
@@ -73,18 +79,17 @@ export function CameraPreview({
     } catch {
       updateStatus("denied");
     }
-  }
+  }, [updateStatus]);
 
   useEffect(() => {
     if (enabled) {
-      startCamera();
+      void startCamera();
     } else {
       stopCamera();
       updateStatus("idle");
     }
     return () => stopCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, startCamera, stopCamera, updateStatus]);
 
   useEffect(() => {
     if (status !== "active" || !onFrameSample) return;
@@ -103,17 +108,18 @@ export function CameraPreview({
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border border-surface-border bg-navy-950">
+    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-navy-950">
       <div className="relative aspect-video">
         <video
           ref={videoRef}
           autoPlay
           muted
           playsInline
+          aria-label="Camera self-view"
           className={`h-full w-full object-cover ${status === "active" ? "" : "hidden"}`}
         />
         {status !== "active" && (
-          <div className="flex h-full w-full items-center justify-center p-4 text-center text-sm text-white/70">
+          <div className="flex h-full w-full items-center justify-center p-4 text-center text-sm text-ink-600">
             {statusMessage[status]}
           </div>
         )}
@@ -122,11 +128,14 @@ export function CameraPreview({
         <button
           type="button"
           onClick={startCamera}
-          className="w-full border-t border-white/10 py-2 text-sm font-medium text-white hover:bg-white/5"
+          className="w-full border-t border-white/10 py-2 text-sm font-medium text-ink-900 hover:bg-white/5"
         >
           Reconnect camera
         </button>
       )}
+      <p className="border-t border-white/[0.06] px-3 py-2 text-[11px] leading-4 text-ink-400">
+        {footnote}
+      </p>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import pytest
 from pydub import AudioSegment
 from pydub.generators import Sine
 
+from tests.conftest import requires_audio_tooling
 from app.services.speech_analytics import (
     SpeechAnalyticsError,
     compute_speech_metrics,
@@ -74,17 +75,19 @@ def test_count_repeated_words_case_insensitive():
 # ---- audio-based metrics (real generated audio, real ffmpeg decode) ------
 
 
+@requires_audio_tooling
 def test_get_audio_duration_matches_real_clip():
     raw = make_audio_bytes([("tone", 3000)])
     duration = get_audio_duration_seconds(raw, format_hint="wav")
     assert duration == pytest.approx(3.0, abs=0.05)
 
 
+@requires_audio_tooling
 def test_get_audio_duration_rejects_garbage():
     with pytest.raises(SpeechAnalyticsError):
         get_audio_duration_seconds(b"this is not audio data at all", format_hint="wav")
 
-
+@requires_audio_tooling
 def test_detect_pauses_finds_known_silence_gap():
     # 2s tone, 1.5s silence, 2s tone -> exactly one pause of ~1.5s
     raw = make_audio_bytes([("tone", 2000), ("silence", 1500), ("tone", 2000)], fmt="wav")
@@ -93,7 +96,7 @@ def test_detect_pauses_finds_known_silence_gap():
     assert avg_pause == pytest.approx(1.5, abs=0.05)
     assert longest_pause == pytest.approx(1.5, abs=0.05)
 
-
+@requires_audio_tooling
 def test_detect_pauses_finds_multiple_gaps():
     raw = make_audio_bytes(
         [("tone", 1000), ("silence", 700), ("tone", 1000), ("silence", 900), ("tone", 1000)],
@@ -104,14 +107,14 @@ def test_detect_pauses_finds_multiple_gaps():
     assert longest_pause == pytest.approx(0.9, abs=0.05)
     assert avg_pause == pytest.approx((0.7 + 0.9) / 2, abs=0.05)
 
-
+@requires_audio_tooling
 def test_detect_pauses_ignores_gaps_shorter_than_threshold():
     # 300ms silence is below the 500ms MIN_PAUSE_MS threshold — shouldn't count
     raw = make_audio_bytes([("tone", 1000), ("silence", 300), ("tone", 1000)], fmt="wav")
     pause_count, _, _ = detect_pauses(raw, format_hint="wav")
     assert pause_count == 0
 
-
+@requires_audio_tooling
 def test_detect_pauses_continuous_speech_has_no_pauses():
     raw = make_audio_bytes([("tone", 3000)], fmt="wav")
     pause_count, avg_pause, longest_pause = detect_pauses(raw, format_hint="wav")
@@ -120,6 +123,7 @@ def test_detect_pauses_continuous_speech_has_no_pauses():
     assert longest_pause == 0.0
 
 
+@requires_audio_tooling
 def test_compute_speech_metrics_real_webm_roundtrip():
     """The realistic end-to-end case: a webm/opus clip (what MediaRecorder
     actually produces in Chrome) with a real pause, plus a transcript with
@@ -136,7 +140,7 @@ def test_compute_speech_metrics_real_webm_roundtrip():
     assert metrics.wordCount == word_count(transcript)
     assert metrics.wordsPerMinute > 0
 
-
+@requires_audio_tooling
 def test_compute_speech_metrics_zero_words_has_zero_wpm_and_filler_rate():
     raw = make_audio_bytes([("tone", 2000)], fmt="wav")
     metrics = compute_speech_metrics(raw, "", format_hint="wav")

@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Select } from "@/components/Select";
 import { ApiError, interviewsApi, profilesApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import {
+  EXPERIENCE_LEVELS,
   INTERVIEW_CATEGORIES,
+  LANGUAGE_OPTIONS,
   type InterviewCategory,
   type InterviewConfig,
   type InterviewDifficulty,
@@ -23,6 +27,76 @@ const DIFFICULTIES: { value: InterviewDifficulty; label: string }[] = [
   { value: "hard", label: "Hard — push me" },
 ];
 
+const LANGUAGE_SELECT_OPTIONS = LANGUAGE_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+const EXPERIENCE_SELECT_OPTIONS = EXPERIENCE_LEVELS.map((o) => ({ value: o.value, label: o.label }));
+
+/** Shared pieces of both flows: everything except the target itself. */
+interface SessionSettings {
+  role: string;
+  company: string;
+  industry: string;
+  experienceLevel: string;
+  difficulty: InterviewDifficulty;
+  language: string;
+  durationMinutes: number;
+}
+
+function useSessionSettings(): [SessionSettings, <K extends keyof SessionSettings>(key: K, value: SessionSettings[K]) => void] {
+  const { user } = useAuth();
+  const [settings, setSettings] = useState<SessionSettings>({
+    role: "",
+    company: "",
+    industry: "",
+    experienceLevel: "entry-level",
+    difficulty: "medium",
+    language: "English",
+    durationMinutes: 20,
+  });
+
+  // Apply the saved preferences once the user record is available.
+  useEffect(() => {
+    if (!user) return;
+    setSettings((prev) => ({
+      ...prev,
+      language: user.preferences.language || prev.language,
+      difficulty: user.preferences.defaultDifficulty || prev.difficulty,
+    }));
+  }, [user]);
+
+  return [settings, (key, value) => setSettings((prev) => ({ ...prev, [key]: value }))];
+}
+
+function DurationSlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+}) {
+  const id = "duration-minutes";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-ink-900">
+        Duration: <output htmlFor={id}>{value} minutes</output>
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={5}
+        max={60}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="accent-accent"
+      />
+      <p className="text-xs text-ink-400">
+        Used to size the session (roughly one question per three minutes). The interview ends by
+        question count, not by a clock.
+      </p>
+    </div>
+  );
+}
+
 function profileDifficultyLabel(profile: InterviewProfile) {
   return profile.difficulty === "adaptive" ? "Adaptive" : profile.difficulty;
 }
@@ -33,11 +107,7 @@ function ProfilePicker({ onCreated }: { onCreated: (id: string) => void }) {
   const [profiles, setProfiles] = useState<InterviewProfile[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<InterviewProfile | null>(null);
-  const [role, setRole] = useState("");
-  const [company, setCompany] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [difficulty, setDifficulty] = useState<InterviewDifficulty>("medium");
-  const [durationMinutes, setDurationMinutes] = useState(20);
+  const [settings, setSetting] = useSessionSettings();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,7 +120,7 @@ function ProfilePicker({ onCreated }: { onCreated: (id: string) => void }) {
 
   function selectProfile(profile: InterviewProfile) {
     setSelected(profile);
-    setDifficulty(profile.difficulty === "adaptive" ? "medium" : profile.difficulty);
+    if (profile.difficulty !== "adaptive") setSetting("difficulty", profile.difficulty);
     setError(null);
   }
 
@@ -62,13 +132,13 @@ function ProfilePicker({ onCreated }: { onCreated: (id: string) => void }) {
 
     const payload: InterviewConfig = {
       profileId: selected.id,
-      role: role || undefined,
-      company: company || undefined,
-      industry: industry || undefined,
-      experienceLevel: "entry-level",
-      difficulty,
-      language: "English",
-      durationMinutes,
+      role: settings.role || undefined,
+      company: settings.company || undefined,
+      industry: settings.industry || undefined,
+      experienceLevel: settings.experienceLevel,
+      difficulty: settings.difficulty,
+      language: settings.language,
+      durationMinutes: settings.durationMinutes,
     };
 
     try {
@@ -80,102 +150,122 @@ function ProfilePicker({ onCreated }: { onCreated: (id: string) => void }) {
     }
   }
 
-  if (loadError) return <p className="text-sm text-danger">{loadError}</p>;
-  if (!profiles) return <p className="text-sm text-white/45">Loading interview profiles…</p>;
+  if (loadError) return <Alert tone="error">{loadError}</Alert>;
+  if (!profiles) {
+    return (
+      <p className="text-sm text-ink-600" role="status">
+        Loading interview profiles…
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-2">
-        {profiles.map((profile) => (
-          <Card
-            key={profile.id}
-            className={selected?.id === profile.id ? "border-violet-400/40 ring-1 ring-violet-400/40" : undefined}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium text-navy-900">{profile.name}</p>
-                {!profile.isSystem && (
-                  <span className="mt-1 inline-block rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-600">
-                    Custom
-                  </span>
-                )}
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-white/45">{profile.description}</p>
-            <p className="mt-3 text-xs text-ink-600">
-              <span className="font-medium text-ink-900">Subjects:</span>{" "}
-              {profile.subjects.join(", ")}
-            </p>
-            <p className="mt-2 text-xs text-ink-600">
-              {profileDifficultyLabel(profile)} · {profile.maxQuestions} questions
-            </p>
-            <Button
-              type="button"
-              variant={selected?.id === profile.id ? "primary" : "secondary"}
-              className="mt-4 w-full"
-              onClick={() => selectProfile(profile)}
+        {profiles.map((profile) => {
+          const isSelected = selected?.id === profile.id;
+          return (
+            <Card
+              key={profile.id}
+              className={isSelected ? "border-accent/60 ring-1 ring-accent/50" : undefined}
             >
-              {selected?.id === profile.id ? "Selected" : "Select"}
-            </Button>
-          </Card>
-        ))}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-ink-900">{profile.name}</p>
+                  {!profile.isSystem && (
+                    <span className="mt-1 inline-block rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-ink-600">
+                      Custom
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-ink-600">{profile.description}</p>
+              <p className="mt-3 text-xs text-ink-400">
+                <span className="font-medium text-ink-600">Subjects:</span>{" "}
+                {profile.subjects.join(", ")}
+              </p>
+              <p className="mt-2 text-xs text-ink-400">
+                {profileDifficultyLabel(profile)} · {profile.maxQuestions} questions
+                {profile.followUpEnabled ? " · follow-ups" : ""}
+              </p>
+              <Button
+                type="button"
+                variant={isSelected ? "primary" : "secondary"}
+                className="mt-4 w-full"
+                aria-pressed={isSelected}
+                onClick={() => selectProfile(profile)}
+              >
+                {isSelected ? "Selected" : "Select"}
+              </Button>
+            </Card>
+          );
+        })}
       </div>
 
       {profiles.length === 0 && (
-        <p className="text-sm text-white/45">No interview profiles available yet.</p>
+        <p className="text-sm text-ink-600">
+          No interview profiles available yet. Build one on the{" "}
+          <Link href="/interview-profiles" className="text-accent-300 hover:text-accent">
+            profiles page
+          </Link>
+          .
+        </p>
       )}
 
       {selected && (
         <Card>
-          <p className="font-medium text-navy-900">Configure “{selected.name}”</p>
+          <p className="font-medium text-ink-900">Configure “{selected.name}”</p>
           <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-5">
             <Input
               label="Role (optional)"
               name="role"
               placeholder="e.g. Backend Engineer"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
+              value={settings.role}
+              onChange={(e) => setSetting("role", e.target.value)}
             />
             <Input
               label="Company (optional)"
               name="company"
               placeholder="e.g. Acme Corp"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
+              value={settings.company}
+              onChange={(e) => setSetting("company", e.target.value)}
             />
             <Input
               label="Industry (optional)"
               name="industry"
               placeholder="e.g. Technology"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
+              value={settings.industry}
+              onChange={(e) => setSetting("industry", e.target.value)}
+            />
+            <Select
+              label="Experience level"
+              name="experienceLevel"
+              value={settings.experienceLevel}
+              onChange={(e) => setSetting("experienceLevel", e.target.value)}
+              options={EXPERIENCE_SELECT_OPTIONS}
             />
             <Select
               label="Difficulty"
               name="difficulty"
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as InterviewDifficulty)}
+              value={settings.difficulty}
+              onChange={(e) => setSetting("difficulty", e.target.value as InterviewDifficulty)}
               options={DIFFICULTIES}
             />
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="duration" className="text-sm font-medium text-ink-900">
-                Duration: {durationMinutes} minutes
-              </label>
-              <input
-                id="duration"
-                type="range"
-                min={5}
-                max={60}
-                step={5}
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className="accent-accent"
-              />
-            </div>
+            <Select
+              label="Language"
+              name="language"
+              value={settings.language}
+              onChange={(e) => setSetting("language", e.target.value)}
+              options={LANGUAGE_SELECT_OPTIONS}
+            />
+            <DurationSlider
+              value={settings.durationMinutes}
+              onChange={(minutes) => setSetting("durationMinutes", minutes)}
+            />
 
-            {error && <p className="text-sm text-danger">{error}</p>}
+            {error && <Alert tone="error">{error}</Alert>}
 
-            <Button type="submit" isLoading={isSubmitting}>
+            <Button type="submit" isLoading={isSubmitting} className="sm:self-start">
               Create interview
             </Button>
           </form>
@@ -185,22 +275,16 @@ function ProfilePicker({ onCreated }: { onCreated: (id: string) => void }) {
   );
 }
 
-// ---- Legacy category flow (kept for full backward compatibility) ---------
+// ---- Category flow (kept for backward compatibility) -----------------------
 
 function CategoryForm({ onCreated }: { onCreated: (id: string) => void }) {
   const [category, setCategory] = useState<InterviewCategory>("software-engineer");
-  const [role, setRole] = useState("");
-  const [company, setCompany] = useState("");
   const [exam, setExam] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [difficulty, setDifficulty] = useState<InterviewDifficulty>("medium");
-  const [durationMinutes, setDurationMinutes] = useState(20);
+  const [settings, setSetting] = useSessionSettings();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const showRole = ["campus-placement", "software-engineer", "mechanical-engineer"].includes(
-    category
-  );
+  const showRole = ["campus-placement", "software-engineer", "mechanical-engineer"].includes(category);
   const showCompany = category === "company-specific";
   const showExam = ["upsc", "mpsc", "ssc", "banking"].includes(category);
 
@@ -211,14 +295,14 @@ function CategoryForm({ onCreated }: { onCreated: (id: string) => void }) {
 
     const payload: InterviewConfig = {
       category,
-      role: showRole && role ? role : undefined,
-      company: showCompany && company ? company : undefined,
+      role: showRole && settings.role ? settings.role : undefined,
+      company: showCompany && settings.company ? settings.company : undefined,
       exam: showExam && exam ? exam : undefined,
-      industry: industry || undefined,
-      experienceLevel: "entry-level",
-      difficulty,
-      language: "English",
-      durationMinutes,
+      industry: settings.industry || undefined,
+      experienceLevel: settings.experienceLevel,
+      difficulty: settings.difficulty,
+      language: settings.language,
+      durationMinutes: settings.durationMinutes,
     };
 
     try {
@@ -246,8 +330,8 @@ function CategoryForm({ onCreated }: { onCreated: (id: string) => void }) {
             label="Role"
             name="role"
             placeholder="e.g. Backend Engineer"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
+            value={settings.role}
+            onChange={(e) => setSetting("role", e.target.value)}
           />
         )}
 
@@ -256,8 +340,8 @@ function CategoryForm({ onCreated }: { onCreated: (id: string) => void }) {
             label="Company"
             name="company"
             placeholder="e.g. Acme Corp"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
+            value={settings.company}
+            onChange={(e) => setSetting("company", e.target.value)}
           />
         )}
 
@@ -275,37 +359,42 @@ function CategoryForm({ onCreated }: { onCreated: (id: string) => void }) {
           label="Industry (optional)"
           name="industry"
           placeholder="e.g. Technology"
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
+          value={settings.industry}
+          onChange={(e) => setSetting("industry", e.target.value)}
+        />
+
+        <Select
+          label="Experience level"
+          name="experienceLevel"
+          value={settings.experienceLevel}
+          onChange={(e) => setSetting("experienceLevel", e.target.value)}
+          options={EXPERIENCE_SELECT_OPTIONS}
         />
 
         <Select
           label="Difficulty"
           name="difficulty"
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value as InterviewDifficulty)}
+          value={settings.difficulty}
+          onChange={(e) => setSetting("difficulty", e.target.value as InterviewDifficulty)}
           options={DIFFICULTIES}
         />
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="duration" className="text-sm font-medium text-ink-900">
-            Duration: {durationMinutes} minutes
-          </label>
-          <input
-            id="duration"
-            type="range"
-            min={5}
-            max={60}
-            step={5}
-            value={durationMinutes}
-            onChange={(e) => setDurationMinutes(Number(e.target.value))}
-            className="accent-accent"
-          />
-        </div>
+        <Select
+          label="Language"
+          name="language"
+          value={settings.language}
+          onChange={(e) => setSetting("language", e.target.value)}
+          options={LANGUAGE_SELECT_OPTIONS}
+        />
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        <DurationSlider
+          value={settings.durationMinutes}
+          onChange={(minutes) => setSetting("durationMinutes", minutes)}
+        />
 
-        <Button type="submit" isLoading={isSubmitting}>
+        {error && <Alert tone="error">{error}</Alert>}
+
+        <Button type="submit" isLoading={isSubmitting} className="sm:self-start">
           Create interview
         </Button>
       </form>
@@ -319,55 +408,50 @@ function NewInterviewForm() {
   const router = useRouter();
   const [mode, setMode] = useState<"profile" | "category">("profile");
 
-  function handleCreated(id: string) {
-    router.push(`/interviews/${id}`);
-  }
-
   return (
     <div className="mx-auto max-w-5xl px-5 py-10 lg:px-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Configure your interview</h1>
-          <p className="mt-2 text-sm text-white/45">
-            Pick an interview profile to set the subjects, question types, and pacing — or{" "}
-            <Link href="/interview-profiles" className="text-accent hover:underline">
-              build your own
-            </Link>
-            .
-          </p>
-        </div>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink-900 sm:text-3xl">
+        Configure your interview
+      </h1>
+      <p className="mt-2 text-sm text-ink-600">
+        Pick an interview profile to set the subjects, question types, and pacing — or{" "}
+        <Link href="/interview-profiles" className="text-accent-300 hover:text-accent">
+          build your own
+        </Link>
+        .
+      </p>
+
+      <div role="tablist" aria-label="Interview setup mode" className="mt-6 flex gap-2 border-b border-white/[.08]">
+        {(
+          [
+            ["profile", "Interview profiles"],
+            ["category", "Choose by category instead"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            id={`tab-${value}`}
+            aria-selected={mode === value}
+            aria-controls={`panel-${value}`}
+            onClick={() => setMode(value)}
+            className={`px-3 py-2 text-sm font-medium transition-colors ${
+              mode === value
+                ? "border-b-2 border-accent text-ink-900"
+                : "text-ink-600 hover:text-ink-900"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className="mt-6 flex gap-2 border-b border-white/[.08]">
-        <button
-          type="button"
-          onClick={() => setMode("profile")}
-          className={`px-3 py-2 text-sm font-medium ${
-            mode === "profile"
-              ? "border-b-2 border-accent text-navy-900"
-              : "text-ink-600 hover:text-navy-900"
-          }`}
-        >
-          Interview profiles
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("category")}
-          className={`px-3 py-2 text-sm font-medium ${
-            mode === "category"
-              ? "border-b-2 border-accent text-navy-900"
-              : "text-ink-600 hover:text-navy-900"
-          }`}
-        >
-          Choose by category instead
-        </button>
-      </div>
-
-      <div className="mt-8">
+      <div className="mt-8" role="tabpanel" id={`panel-${mode}`} aria-labelledby={`tab-${mode}`}>
         {mode === "profile" ? (
-          <ProfilePicker onCreated={handleCreated} />
+          <ProfilePicker onCreated={(id) => router.push(`/interviews/${id}`)} />
         ) : (
-          <CategoryForm onCreated={handleCreated} />
+          <CategoryForm onCreated={(id) => router.push(`/interviews/${id}`)} />
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
@@ -186,7 +187,7 @@ function ProfileForm({
           ))}
         </div>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <Alert tone="error">{error}</Alert>}
 
         <div className="flex gap-3">
           <Button type="submit" isLoading={isSubmitting}>
@@ -208,14 +209,15 @@ function InterviewProfilesContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  function load() {
+  const load = useCallback(() => {
+    setError(null);
     profilesApi
       .list()
       .then(setProfiles)
       .catch(() => setError("Couldn't load interview profiles. Try refreshing."));
-  }
+  }, []);
 
-  useEffect(load, []);
+  useEffect(load, [load]);
 
   async function handleCreate(input: InterviewProfileInput) {
     await profilesApi.create(input);
@@ -245,26 +247,36 @@ function InterviewProfilesContent() {
   const system = profiles?.filter((p) => p.isSystem) ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-4xl px-5 py-10 sm:px-6 lg:py-12">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-navy-900">Interview profiles</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink-900">Interview profiles</h1>
           <p className="mt-1 text-sm text-ink-600">
             Reusable interview configurations — subjects, question types, pacing, and grounding.
           </p>
         </div>
         {!creating && (
-          <Button onClick={() => setCreating(true)}>Create custom profile</Button>
+          <Button onClick={() => setCreating(true)} className="sm:self-start">
+            Create custom profile
+          </Button>
         )}
       </div>
 
-      {error && <p className="mt-4 text-sm text-danger">{error}</p>}
+      {error && (
+        <Alert tone="error" className="mt-4">
+          {error}
+        </Alert>
+      )}
 
       {creating && (
         <ProfileForm initial={EMPTY_FORM} onCancel={() => setCreating(false)} onSubmit={handleCreate} />
       )}
 
-      {!profiles && !error && <p className="mt-8 text-sm text-ink-600">Loading…</p>}
+            {!profiles && !error && (
+        <p className="mt-8 text-sm text-ink-600" role="status">
+          Loading interview profiles…
+        </p>
+      )}
 
       {profiles && (
         <>
@@ -286,7 +298,7 @@ function InterviewProfilesContent() {
                     <Card key={profile.id}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-navy-900">{profile.name}</p>
+                          <p className="font-medium text-ink-900">{profile.name}</p>
                           <p className="mt-1 text-sm text-ink-600">{profile.description}</p>
                           <p className="mt-2 text-xs text-ink-600">
                             Subjects: {profile.subjects.join(", ")} · Types:{" "}
@@ -304,7 +316,15 @@ function InterviewProfilesContent() {
                           <Button
                             variant="danger"
                             isLoading={deletingId === profile.id}
-                            onClick={() => handleDelete(profile.id)}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Delete the profile "${profile.name}"? Interviews already created with it keep working.`
+                                )
+                              ) {
+                                void handleDelete(profile.id);
+                              }
+                            }}
                           >
                             Delete
                           </Button>
@@ -324,7 +344,7 @@ function InterviewProfilesContent() {
             <div className="mt-3 grid gap-4 md:grid-cols-2">
               {system.map((profile) => (
                 <Card key={profile.id}>
-                  <p className="font-medium text-navy-900">{profile.name}</p>
+                  <p className="font-medium text-ink-900">{profile.name}</p>
                   <p className="mt-1 text-sm text-ink-600">{profile.description}</p>
                   <p className="mt-2 text-xs text-ink-600">Subjects: {profile.subjects.join(", ")}</p>
                   <p className="mt-1 text-xs text-ink-600">

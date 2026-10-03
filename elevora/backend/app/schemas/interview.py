@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.ai import AnswerAnalysis
 from app.schemas.candidate import CandidateProfile
@@ -120,6 +120,20 @@ class ExitInterviewResponse(BaseModel):
 
 class AnswerRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=8000)
+    # The question this answer belongs to, exactly as the client displayed it.
+    # Optional for backward compatibility with clients that don't send it; when
+    # present it makes duplicate/stale submissions detectable.
+    question: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("answer")
+    @classmethod
+    def reject_blank_answer(cls, v: str) -> str:
+        """Whitespace-only answers are a mis-click, not an answer — reject them
+        before they reach the engine (and the AI provider)."""
+        v = v.strip()
+        if not v:
+            raise ValueError("Answer cannot be empty.")
+        return v
 
 
 class StartInterviewResponse(BaseModel):

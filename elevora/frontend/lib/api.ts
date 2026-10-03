@@ -12,46 +12,112 @@ import type {
   JobProfile,
   StartInterviewResult,
   User,
+  UserPreferences,
   WebcamMetrics,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+/**
+ * Where the API lives, from the browser's point of view.
+ *
+ * Defaults to the same-origin `/api` path, which `next.config.js` proxies to
+ * the FastAPI service (BACKEND_ORIGIN). Same-origin keeps the session cookie
+ * first-party — no CORS preflights, no SameSite=None, nothing to misconfigure
+ * in production. Set NEXT_PUBLIC_API_URL only when the API genuinely lives on
+ * another origin.
+ */
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;
 
   constructor(message: string, status: number) {
     super(message);
-    this.status = status;
     this.name = "ApiError";
+    this.status = status;
   }
 }
 
+/** Normalizes the backend's error envelope, which is always `{detail: string}`. */
+async function errorFromResponse(res: Response): Promise<ApiError> {
+  let message =
+    res.status >= 500
+      ? `The server had a problem (${res.status}). Try again in a moment.`
+      : `Request failed with status ${res.status}`;
+  if (res.headers.get("content-type")?.includes("application/json")) {
+    try {
+      const body = await res.json();
+      if (body && typeof body.detail === "string" && body.detail.trim()) {
+        message = body.detail;
+      }
+    } catch {
+      // Non-JSON body (a proxy error page, for example) — keep the status message.
+    }
+  }
+  return new ApiError(message, res.status);
+}
+
+/**
+ * A fetch-level failure (offline, DNS, connection refused, CORS) is not an HTTP
+ * response at all. Without this, the browser's bare "Failed to fetch" leaks to
+ * the UI, which tells the candidate nothing actionable.
+ */
+function networkError(): ApiError {
+  return new ApiError(
+    "Can't reach the ELEVORA server. Check your connection and try again.",
+    0
+  );
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    credentials: "include", // send/receive the HTTP-only session cookie
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      credentials: "include", // send/receive the HTTP-only session cookie
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    // Aborts are control flow, not failures — let callers handle them.
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw networkError();
+  }
 
   if (res.status === 204) {
     return undefined as T;
   }
-
-  const isJson = res.headers.get("content-type")?.includes("application/json");
-  const body = isJson ? await res.json() : undefined;
-
   if (!res.ok) {
-    const message =
-      (body && typeof body.detail === "string" && body.detail) ||
-      `Request failed with status ${res.status}`;
-    throw new ApiError(message, res.status);
+    throw await errorFromResponse(res);
   }
 
-  return body as T;
+  const isJson = res.headers.get("content-type")?.includes("application/json");
+  return (isJson ? await res.json() : undefined) as T;
+}
+
+/**
+ * Multipart upload. The Content-Type header is deliberately left unset so the
+ * browser adds the multipart boundary itself.
+ */
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw networkError();
+  }
+
+  if (!res.ok) {
+    throw await errorFromResponse(res);
+  }
+  const isJson = res.headers.get("content-type")?.includes("application/json");
+  return (isJson ? await res.json() : undefined) as T;
 }
 
 export const authApi = {
@@ -64,6 +130,9 @@ export const authApi = {
   logout: () => request<void>("/auth/logout", { method: "POST" }),
 
   me: () => request<User>("/auth/me"),
+
+  updateMe: (data: { name?: string; preferences?: Partial<UserPreferences> }) =>
+    request<User>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
 };
 
 export const profilesApi = {
@@ -92,70 +161,62 @@ export const interviewsApi = {
 
   list: () => request<Interview[]>("/interviews"),
 
-  get: (id: string) => request<Interview>(`/interviews/${id}`),
+  get: (id: string, signal?: AbortSignal) => request<Interview>(`/interviews/${id}`, { signal }),
 
   remove: (id: string) => request<void>(`/interviews/${id}`, { method: "DELETE" }),
 
-  start: (id: string) =>
-    request<StartInterviewResult>(`/interviews/${id}/start`, { method: "POST" }),
+  start: (id: string) => request<StartInterviewResult>(`/interviews/${id}/start`, { method: "POST" }),
 
-  answer: (id: string, answer: string) =>
+  /** `question` is the text the candidate was answering. Sending it back makes
+   * a duplicate or delayed submission detectable server-side instead of being
+   * recorded against whatever question is pending by then. */
+  answer: (id: string, answer: string, question?: string) =>
     request<AnswerResult>(`/interviews/${id}/answer`, {
       method: "POST",
-      body: JSON.stringify({ answer }),
+      body: JSON.stringify({ answer, question }),
     }),
 
-  turns: (id: string) => request<InterviewTurn[]>(`/interviews/${id}/turns`),
+  turns: (id: string, signal?: AbortSignal) =>
+    request<InterviewTurn[]>(`/interviews/${id}/turns`, { signal }),
 
   exit: (id: string) => request<ExitInterviewResult>(`/interviews/${id}/exit`, { method: "POST" }),
 
-  /** Not a fetch helper — the <audio> element or a manual fetch(..., {credentials:
-   * "include"}) hits this directly, since it returns raw audio bytes, not JSON. */
-  questionAudioUrl: (id: string) => `${API_URL}/interviews/${id}/question-audio`,
+  /** Not a fetch helper — the <audio> path is hit directly because it returns
+   * raw audio bytes, not JSON. */
+  questionAudioUrl: (id: string) => `${API_BASE}/interviews/${id}/question-audio`,
 
-  answerAudio: async (id: string, blob: Blob, filename: string): Promise<AudioAnswerResult> => {
+  /** Fetches the spoken question as a Blob so callers can control playback and
+   * surface failures (autoplay policies, a missing OpenAI key, …). */
+  questionAudio: async (id: string, signal?: AbortSignal): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/interviews/${id}/question-audio`, {
+        credentials: "include",
+        signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") throw err;
+      throw networkError();
+    }
+    if (!res.ok) throw await errorFromResponse(res);
+    return res.blob();
+  },
+
+  answerAudio: (id: string, blob: Blob, filename: string, question?: string) => {
     const form = new FormData();
     form.append("audio_file", blob, filename);
-
-    const res = await fetch(`${API_URL}/interviews/${id}/answer/audio`, {
-      method: "POST",
-      credentials: "include",
-      // No Content-Type header here on purpose — the browser sets
-      // multipart/form-data with the correct boundary itself. Setting it
-      // manually (like the JSON request() helper does) breaks the upload.
-      body: form,
-    });
-
-    const isJson = res.headers.get("content-type")?.includes("application/json");
-    const body = isJson ? await res.json() : undefined;
-
-    if (!res.ok) {
-      const message =
-        (body && typeof body.detail === "string" && body.detail) ||
-        `Request failed with status ${res.status}`;
-      throw new ApiError(message, res.status);
-    }
-
-    return body as AudioAnswerResult;
+    if (question) form.append("question", question);
+    return requestForm<AudioAnswerResult>(`/interviews/${id}/answer/audio`, form);
   },
 
   uploadResume: async (id: string, file: File): Promise<CandidateProfile> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${API_URL}/interviews/${id}/resume`, {
-      method: "POST",
-      credentials: "include",
-      body: form,
-    });
-    const isJson = res.headers.get("content-type")?.includes("application/json");
-    const body = isJson ? await res.json() : undefined;
-    if (!res.ok) {
-      const message =
-        (body && typeof body.detail === "string" && body.detail) ||
-        `Request failed with status ${res.status}`;
-      throw new ApiError(message, res.status);
-    }
-    return (body as { candidateProfile: CandidateProfile }).candidateProfile;
+    const body = await requestForm<{ candidateProfile: CandidateProfile }>(
+      `/interviews/${id}/resume`,
+      form
+    );
+    return body.candidateProfile;
   },
 
   uploadJobDescription: async (
@@ -168,26 +229,18 @@ export const interviewsApi = {
     } else {
       form.append("text", source.text);
     }
-    const res = await fetch(`${API_URL}/interviews/${id}/job-description`, {
-      method: "POST",
-      credentials: "include",
-      body: form,
-    });
-    const isJson = res.headers.get("content-type")?.includes("application/json");
-    const body = isJson ? await res.json() : undefined;
-    if (!res.ok) {
-      const message =
-        (body && typeof body.detail === "string" && body.detail) ||
-        `Request failed with status ${res.status}`;
-      throw new ApiError(message, res.status);
-    }
-    return (body as { jobProfile: JobProfile }).jobProfile;
+    const body = await requestForm<{ jobProfile: JobProfile }>(
+      `/interviews/${id}/job-description`,
+      form
+    );
+    return body.jobProfile;
   },
 
   generateReport: (id: string) =>
     request<InterviewReport>(`/interviews/${id}/report`, { method: "POST" }),
 
-  getReport: (id: string) => request<InterviewReport>(`/interviews/${id}/report`),
+  getReport: (id: string, signal?: AbortSignal) =>
+    request<InterviewReport>(`/interviews/${id}/report`, { signal }),
 
   submitWebcamMetrics: (id: string, metrics: WebcamMetrics) =>
     request<WebcamMetrics>(`/interviews/${id}/webcam-metrics`, {

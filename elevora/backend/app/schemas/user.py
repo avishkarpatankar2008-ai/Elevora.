@@ -1,11 +1,12 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
 
 class UserPreferences(BaseModel):
     language: str = "English"
-    defaultDifficulty: str = "medium"
+    defaultDifficulty: Literal["easy", "medium", "hard"] = "medium"
 
 
 class UserPublic(BaseModel):

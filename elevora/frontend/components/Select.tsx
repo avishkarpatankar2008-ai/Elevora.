@@ -2,11 +2,12 @@ import { SelectHTMLAttributes, forwardRef } from "react";
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
+  hint?: string;
   options: { value: string; label: string }[];
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, options, id, className = "", ...props }, ref) => {
+  ({ label, hint, options, id, className = "", ...props }, ref) => {
     const selectId = id ?? props.name;
     return (
       <div className="flex flex-col gap-1.5">
@@ -16,7 +17,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         <select
           ref={ref}
           id={selectId}
-          className={`rounded-md border border-surface-border bg-white px-3.5 py-2.5 text-sm text-ink-900 focus:border-accent ${className}`}
+          className={`w-full rounded-md border border-surface-border bg-white/[0.04] px-3.5 py-2.5 text-sm text-ink-900 transition-colors focus:border-accent focus:outline-none disabled:opacity-60 [&>option]:bg-navy-800 [&>option]:text-ink-900 ${className}`}
+          aria-describedby={hint ? `${selectId}-hint` : undefined}
           {...props}
         >
           {options.map((opt) => (
@@ -25,6 +27,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
+        {hint && (
+          <p id={`${selectId}-hint`} className="text-xs text-ink-400">
+            {hint}
+          </p>
+        )}
       </div>
     );
   }

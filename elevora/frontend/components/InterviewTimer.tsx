@@ -33,7 +33,8 @@ export function InterviewTimer({
   }, [startedAt]);
 
   return (
-    <span className="font-mono text-sm text-ink-600">
+    <span className="font-mono text-sm tabular-nums text-ink-600">
+      <span className="sr-only">Elapsed time </span>
       {formatDuration(elapsedSeconds)}
       {targetMinutes ? ` / ~${targetMinutes}:00` : ""}
     </span>

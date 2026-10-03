@@ -1,10 +1,14 @@
-"""
-Run this after setting a real OPENAI_API_KEY, before trusting the AI engine.
+"""Manual smoke test for the real AI providers.
 
-This exercises app/services/ai_client.py against the actual OpenAI API — the
-one piece of Phase 2 that could not be tested while building it (no network
-access to api.openai.com from that sandbox). Everything else in Phase 2 is
-covered by pytest with a mocked AI client; this is the real thing.
+Text generation runs on OpenRouter, speech-to-text and text-to-speech on
+OpenAI. The automated suite covers the client's failure handling with stubs
+(see tests/test_ai_client.py), but no test can confirm that a real key, a real
+model id, and real network access work together. Run this once after
+configuring credentials, and after changing the model ids.
+
+Preconditions:
+    OPENROUTER_API_KEY   set (text: questions, analysis, extraction, reports)
+    OPENAI_API_KEY       set (voice: transcription + TTS)
 
 Usage:
     cd backend
@@ -29,15 +33,16 @@ async def main() -> None:
         interviewerStyle="professional",
     )
 
-    print("1. Generating an opening question...")
+    print("1. Generating an opening question (OpenRouter)...")
     try:
         question = await client.generate_question(
             system=prompts.question_system_prompt(profile),
             user=prompts.baseline_question_user_prompt("Databases", difficulty=3, previously_asked=[], opening=True),
         )
     except AIServiceError as exc:
-        print(f"   FAILED: {exc}")
-        print("   Check OPENAI_API_KEY, OPENAI_MODEL, and your account's API access.")
+        print(f"   FAILED ({exc.kind}): {exc}")
+        print(f"   User-facing message: {exc.user_message}")
+        print("   Check OPENROUTER_API_KEY and OPENROUTER_MODEL.")
         return
 
     print(f"   question = {question.question!r}")
@@ -51,7 +56,7 @@ async def main() -> None:
             user=prompts.analysis_user_prompt(question.question, weak_answer, question.difficulty),
         )
     except AIServiceError as exc:
-        print(f"   FAILED: {exc}")
+        print(f"   FAILED ({exc.kind}): {exc}")
         return
 
     print(f"   quality = {analysis.quality}")
@@ -71,19 +76,18 @@ async def main() -> None:
             user=prompts.analysis_user_prompt(question.question, strong_answer, question.difficulty),
         )
     except AIServiceError as exc:
-        print(f"   FAILED: {exc}")
+        print(f"   FAILED ({exc.kind}): {exc}")
         return
 
     print(f"   quality = {analysis2.quality} (expect this higher than the weak answer's {analysis.quality})")
     print(f"   strengths = {analysis2.strengths}")
 
-    print("\n4. Synthesizing speech for the opening question (Phase 3)...")
+    print("\n4. Synthesizing speech for the opening question (OpenAI TTS)...")
     try:
         audio_bytes = await client.synthesize_speech(text=question.question)
     except AIServiceError as exc:
         print(f"   FAILED: {exc}")
-        print("   This is the least-tested part of the whole build — check OPENAI_TTS_MODEL")
-        print("   and OPENAI_TTS_VOICE are valid, and read the exception message closely.")
+        print("   Check OPENAI_API_KEY, OPENAI_TTS_MODEL and OPENAI_TTS_VOICE.")
         return
     print(f"   got {len(audio_bytes)} bytes back.")
     with open("smoke_test_question.mp3", "wb") as f:
@@ -91,17 +95,17 @@ async def main() -> None:
     print("   wrote smoke_test_question.mp3 in the current directory — play it and confirm")
     print("   it's actually the question being read aloud, not silence or garbage.")
 
-    print("\n5. Transcribing that same audio back (Phase 3, round-trip sanity check)...")
+    print("\n5. Transcribing that same audio back (round-trip sanity check)...")
     try:
         transcript = await client.transcribe_audio(audio_bytes=audio_bytes, filename="question.mp3")
     except AIServiceError as exc:
-        print(f"   FAILED: {exc}")
+        print(f"   FAILED ({exc.kind}): {exc}")
         return
     print(f"   transcript = {transcript!r}")
     print("   Compare this to the original question text above — it won't match exactly")
     print("   (TTS/STT roundtrips rarely do) but it should be recognizably the same content.")
 
-    print("\n6. Extracting a candidate profile from sample resume text (Phase 5)...")
+    print("\n6. Extracting a candidate profile from sample resume text...")
     sample_resume = (
         "Jane Doe. Skills: Python, PostgreSQL, System Design. "
         "Experience: Backend Engineer at Acme Corp, 2021-2024. "
@@ -114,13 +118,13 @@ async def main() -> None:
             user=prompts.resume_extraction_user_prompt(sample_resume),
         )
     except AIServiceError as exc:
-        print(f"   FAILED: {exc}")
+        print(f"   FAILED ({exc.kind}): {exc}")
         return
     print(f"   skills = {candidate.skills}")
     print(f"   projects = {candidate.projects}")
     print("   Check nothing here was invented beyond what's in sample_resume above.")
 
-    print("\n7. Generating an evaluation report from a tiny fake transcript (Phase 6)...")
+    print("\n7. Generating an evaluation report from a tiny sample transcript...")
     fake_turns = [
         {
             "sequence": 1,
@@ -148,8 +152,6 @@ async def main() -> None:
         )
     except AIServiceError as exc:
         print(f"   FAILED: {exc}")
-        print("   This call has never been made against the real API before now — if it")
-        print("   fails, check the exception message closely before assuming it's your key.")
         return
     print(f"   knowledgeScore = {evaluation.knowledgeScore}  evidence = {evaluation.knowledgeEvidence!r}")
     print(f"   strengths = {evaluation.strengths}")

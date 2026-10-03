@@ -44,7 +44,27 @@ SILENCE_THRESHOLD_DBFS = -40
 class SpeechAnalyticsError(Exception):
     """Raised when audio can't be decoded. Callers should treat this as
     'metrics unavailable', not fail the whole answer-submission flow —
-    analytics are a bonus, not a requirement for the interview to proceed."""
+    analytics are a bonus, not a requirement for the interview to proceed.
+
+    The message is for server-side logs; it is never shown to a user (the API
+    layer turns this into "no speech metrics for this turn")."""
+
+
+def _decode(raw: bytes, format_hint: str | None) -> "AudioSegment":
+    """Decode compressed audio into a pydub segment.
+
+    Decoding is the expensive part of this module (it shells out to ffmpeg and
+    loads PCM into memory), so callers decode once and derive everything —
+    duration and pauses — from the same segment. ffmpeg/ffprobe must be
+    installed; if they aren't, decoding raises and the interview continues
+    without speech metrics.
+    """
+    try:
+        return AudioSegment.from_file(io.BytesIO(raw), format=format_hint)
+    except Exception as exc:  # pydub/ffmpeg raise a variety of exceptions
+        raise SpeechAnalyticsError(
+            f"Couldn't decode audio ({format_hint or 'auto-detected'}): {type(exc).__name__}: {exc}"
+        ) from exc
 
 
 def _tokenize(text: str) -> list[str]:
@@ -86,28 +106,16 @@ def count_repeated_words(text: str) -> int:
 
 
 def get_audio_duration_seconds(raw: bytes, *, format_hint: str | None = None) -> float:
-    try:
-        segment = AudioSegment.from_file(io.BytesIO(raw), format=format_hint)
-    except Exception as exc:
-        raise SpeechAnalyticsError(f"Couldn't decode audio to measure duration: {exc}") from exc
+    segment = _decode(raw, format_hint)
     return len(segment) / 1000.0
 
 
-def detect_pauses(
-    raw: bytes,
+def _pauses_from_segment(
+    segment: "AudioSegment",
     *,
-    format_hint: str | None = None,
-    min_pause_ms: int = MIN_PAUSE_MS,
-    silence_thresh_dbfs: int = SILENCE_THRESHOLD_DBFS,
+    min_pause_ms: int,
+    silence_thresh_dbfs: int,
 ) -> tuple[int, float, float]:
-    """Returns (pause_count, average_pause_seconds, longest_pause_seconds).
-    All zero if no pauses meeting the threshold were found — that's a valid
-    result (continuous speech), not a failure."""
-    try:
-        segment = AudioSegment.from_file(io.BytesIO(raw), format=format_hint)
-    except Exception as exc:
-        raise SpeechAnalyticsError(f"Couldn't decode audio to detect pauses: {exc}") from exc
-
     silences = detect_silence(
         segment, min_silence_len=min_pause_ms, silence_thresh=silence_thresh_dbfs
     )
@@ -121,13 +129,36 @@ def detect_pauses(
     return pause_count, average_pause, longest_pause
 
 
+def detect_pauses(
+    raw: bytes,
+    *,
+    format_hint: str | None = None,
+    min_pause_ms: int = MIN_PAUSE_MS,
+    silence_thresh_dbfs: int = SILENCE_THRESHOLD_DBFS,
+) -> tuple[int, float, float]:
+    """Returns (pause_count, average_pause_seconds, longest_pause_seconds).
+    All zero if no pauses meeting the threshold were found — that's a valid
+    result (continuous speech), not a failure."""
+    segment = _decode(raw, format_hint)
+    return _pauses_from_segment(
+        segment, min_pause_ms=min_pause_ms, silence_thresh_dbfs=silence_thresh_dbfs
+    )
+
+
 def compute_speech_metrics(
     raw: bytes, transcript: str, *, format_hint: str | None = None
 ) -> SpeechMetrics:
-    """The one function callers actually use — combines everything above
-    into the shape stored on an interview_turns document."""
-    duration_seconds = get_audio_duration_seconds(raw, format_hint=format_hint)
-    pause_count, avg_pause, longest_pause = detect_pauses(raw, format_hint=format_hint)
+    """The one function callers actually use — combines everything above into
+    the shape stored on an interview_turns document.
+
+    The audio is decoded exactly once; duration and pause detection both read
+    from that single segment.
+    """
+    segment = _decode(raw, format_hint)
+    duration_seconds = len(segment) / 1000.0
+    pause_count, avg_pause, longest_pause = _pauses_from_segment(
+        segment, min_pause_ms=MIN_PAUSE_MS, silence_thresh_dbfs=SILENCE_THRESHOLD_DBFS
+    )
 
     words = word_count(transcript)
     words_per_minute = (words / duration_seconds) * 60 if duration_seconds > 0 else 0.0

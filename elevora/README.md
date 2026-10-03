@@ -1,11 +1,38 @@
-# Elevora — Phase 8 (Interview Profiles)
+# ELEVORA
 
-Adaptive AI mock interview platform. This delivers **Phases 1–8**: auth,
-dashboard, interview configuration, a text/voice AI interviewer, a
-webcam-equipped interview room, resume/JD grounding, scored performance
-reports, real speech/webcam analytics, and now a reusable **Interview
-Profile** system — interviews are no longer tied to a hardcoded category
-list; anyone can select a named, storable profile or build their own.
+Adaptive AI interview practice platform: auth, dashboard, interview
+configuration, a text/voice AI interviewer, an interview room with on-device
+webcam analytics, resume/JD grounding, reusable **Interview Profiles**, and
+evidence-linked performance reports scored by a deterministic weighted model.
+
+The numbers and claims in this README are the ones that were actually verified;
+anything that isn't is listed as unverified with the exact steps to check it.
+For the full engineering report of the production-readiness pass, see
+[`PRODUCTION_READINESS_REPORT.md`](./PRODUCTION_READINESS_REPORT.md).
+
+## Quick start
+
+```bash
+# 1. API
+cd backend
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env            # optional in dev; every value has a default
+.venv/bin/uvicorn app.main:app --reload --port 8000
+#   No MongoDB installed? Run it throwaway-style instead:
+#   MONGO_URI=memory:// .venv/bin/uvicorn app.main:app --reload
+#   (development only — refused outright when ENV=production)
+
+# 2. Web client
+cd ../frontend
+npm install
+npm run dev                     # http://localhost:3000
+```
+
+The browser only ever talks to the Next.js origin: `/api/*` is proxied
+server-side to `BACKEND_ORIGIN` (default `http://127.0.0.1:8000`), so the session
+cookie stays first-party and there is no CORS to configure. Text generation
+needs `OPENROUTER_API_KEY`; voice needs `OPENAI_API_KEY`; without them the app
+runs and reports "AI isn't configured" instead of failing silently.
 
 ## What's actually verified vs. what isn't
 
@@ -14,16 +41,20 @@ best-tested code in the project and, by a real margin, the least-tested.
 
 | Component | Verified how | Confidence |
 |---|---|---|
-| Backend logic (state machine, endpoint plumbing, all phases' orchestration) | Full pytest suite (**163 tests** — 135 from Phases 1–7 plus **28 new Phase 8 tests**) against an in-memory Mongo and a scripted fake AI client | High |
+| Backend logic (state machine, endpoint plumbing, orchestration) | Full pytest suite (**231 tests**) against an in-memory Mongo and a scripted fake AI client | High |
+| Concurrency / idempotency / retry safety | `tests/test_reliability.py` — duplicate submissions, stale claims, failed AI calls, concurrent report generation | High |
+| Security (authz isolation, rate limiting, upload validation, prompt-injection containment, error hygiene) | `tests/test_security.py` (31 tests) | High |
+| AI client failure handling (retries, timeouts, malformed output, missing keys) | `tests/test_ai_client.py` (21 tests, stubbed provider) | High for our behavior; the providers themselves are unverified |
 | **PDF/DOCX text extraction** | Tested against real generated files | High |
 | **Scoring/weighting math** (Phase 6) | Pure unit tests, no AI/DB | High |
 | **Speech analytics** (`app/services/speech_analytics.py`) | **Tested against real generated audio** — ffmpeg is installed in this sandbox, so tests build actual audio clips with known silence gaps (via pydub's tone/silence generators), export them to real webm/wav bytes, and confirm the detected pauses/duration/WPM match. Caught and fixed a real bug (punctuation broke multi-word filler matching) before it shipped. | **High — same category as the PDF/DOCX parsing, genuinely not "unverified"** |
 | **Delivery/Webcam deterministic scoring** (`app/services/deterministic_scoring.py`) | Pure unit tests, no AI/DB — 16 tests check every threshold | **High** |
 | **End-to-end voice → Delivery score** | Integration test posts real generated audio through the actual `/answer/audio` endpoint and confirms a real (non-placeholder) Delivery score comes out the other end of a generated report | High |
-| Frontend | `tsc --noEmit`, `eslint`, full `next build` — all 9 routes compile, including the new MediaPipe dependency | High for compilation |
-| **The MediaPipe API calls themselves** (`lib/webcamAnalytics.ts`) | Checked against the *actual installed package's real TypeScript definitions* (not recalled from training data) — the method names, option shapes, and result types are confirmed correct as of `@mediapipe/tasks-vision@1.0.1`. | Medium for API correctness |
+| Frontend | `tsc --noEmit`, `eslint`, full `next build` (10 routes, first-load JS ≤ 108 kB) — all clean, fonts self-hosted | High for compilation |
+| Frontend behavior (API client error mapping, webcam aggregation math, honest "Not available" rendering) | `npx vitest run` — 23 tests, jsdom + Testing Library | High for the tested units |
+| **The MediaPipe API calls themselves** (`lib/webcamAnalytics.ts`) | Checked against the *actual installed package's real TypeScript definitions* (not recalled from training data), and the aggregation arithmetic is unit-tested. The WASM runtime is now served from our own origin (copied out of the pinned package), so the previous CDN dependency is gone. | Medium for API correctness |
 | **Whether the webcam analytics actually work in a browser** | **Not verified at all — no camera, no browser.** Model loading from the CDN, `detectForVideo` against a live stream, and the head-orientation math (see the file's own extensive comments) have never run. | **The single least-verified piece in the entire project — more uncertain than VoiceControls or CameraPreview, which wrap simpler, longer-stable browser APIs** |
-| **OpenAI text/voice integration** | Not tested against the real API | Unverified — smoke-test before trusting |
+| **OpenRouter text / OpenAI voice integration** | Not tested against the real APIs (no key, no network from this environment) | Unverified — `python -m scripts.smoke_test_ai` before trusting |
 | **Browser audio/camera** (`VoiceControls`, `CameraPreview`) | Type-checked and linted only. No browser available. | Unverified |
 | End-to-end in a browser | Not done | Untested |
 
@@ -228,35 +259,42 @@ try/catch that fails silently, so a broken integration means Webcam stays
 If it does break something else, that's a real bug to report, not an
 intended fallback.
 
-## Setup (adds ffmpeg + a system dependency; one new frontend package)
+## Local setup and checks
 
 ```bash
 cd backend
-pip install -r requirements.txt   # now includes pydub
-pytest -q   # 135 tests. Speech analytics and deterministic scoring (29 of
-            # them) need no OpenAI key or mock — real audio, real arithmetic.
-python -m scripts.smoke_test_ai
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest -q              # 231 passed (69s)
+.venv/bin/python -m scripts.smoke_test_ai  # real provider calls; needs keys
 ```
 
-**pydub needs ffmpeg installed on the system** (not just pip-installed) to
-decode real audio — `apt-get install ffmpeg` on Debian/Ubuntu, `brew
-install ffmpeg` on macOS. Without it, `answer_audio_endpoint` still works
-(transcription doesn't need it) but speech metrics silently won't compute
-for any turn — that's the graceful-degradation path working as designed,
-not a bug, but worth knowing ffmpeg is why.
+**pydub needs ffmpeg/ffprobe installed on the system** (not just pip-installed)
+to decode real audio — `apt-get install ffmpeg` on Debian/Ubuntu, `brew install
+ffmpeg` on macOS. Without it, `answer_audio_endpoint` still works (transcription
+doesn't need it) but speech metrics silently won't compute for any turn — that
+is the graceful-degradation path working as designed, and the audio-dependent
+tests skip themselves with an explicit reason instead of failing with a pydub
+traceback.
 
 ```bash
 cd frontend
-npm install   # now includes @mediapipe/tasks-vision
+npm install
+npm run typecheck   # tsc --noEmit
+npm run lint        # next lint (app, components, lib, tests)
+npm test            # vitest run — 23 tests
+npm run build       # prebuild copies the MediaPipe WASM runtime, then builds
 ```
 
-No new backend environment variables.
+Every backend variable (and its default) is documented in
+`backend/.env.example`; the frontend's are in `frontend/.env.local.example`.
 
 ## Known gaps carried over
 
-- **No logo asset was ever attached** — `Logo.tsx` is still a placeholder.
-- Settings page is still read-only (no `PATCH /users/me`).
-- No rate limiting, password reset, or email verification — Phase 9's job.
+- **No logo asset was ever attached** — `Logo.tsx` uses an inline SVG mark.
+- No password reset, email verification, or account deletion yet.
+- API rate limiting is per process; a multi-worker deployment needs a shared
+  store (Redis) for it to be global.
+- Interview history is capped at 200 per request and has no paging UI.
 - Realtime/WebRTC voice — see the Phase 3 scope decision above.
 - No raw resume/JD file storage, no resume reuse across interviews.
 - Delivery/Webcam scoring thresholds are reasonable starting points, not
@@ -465,11 +503,57 @@ switches off follow-ups / difficulty adaptation / resume / JD grounding
 per-flag — all covered by `tests/test_interview_profiles.py`'s engine-level
 tests, not just the CRUD surface.
 
-### What's next (Phase 9, per the spec)
+### What's next
 
 Interview Profiles were the last piece both the build brief and the
 roadmap PDF group under "universal interview framework." What's left is
-Phase 9 territory — the brief doesn't specify it further from here, so the
+Beyond the current scope — the brief doesn't specify it further from here, so the
 natural candidates (multi-profile interview packs, org-shared profiles,
 profile analytics) are open design questions, not committed work.
 
+## Deployment
+
+```bash
+cd elevora
+cp backend/.env.example backend/.env      # fill in real values
+docker compose up --build                 # mongo + api + web
+```
+
+`docker-compose.yml` wires the three services (MongoDB 7, the API image which
+installs ffmpeg, and the standalone Next.js server that proxies `/api/*`).
+Build the images with Docker available locally; the images could not be built
+in the sandbox this pass was written in.
+
+**Behind your own proxy/infrastructure** — the short version:
+
+1. API: `ENV=production`, a real `JWT_SECRET` (≥ 32 chars), `MONGO_URI`,
+   `FRONTEND_ORIGIN`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`. The app refuses to
+   start if the production configuration is unsafe. Install `ffmpeg`/`ffprobe`
+   in the image or speech metrics stay unavailable.
+2. Web: `BACKEND_ORIGIN` pointing at the API service; the `prebuild` script
+   copies the MediaPipe runtime into `public/mediapipe/wasm`.
+3. Terminate TLS at the edge and add HSTS/`frame-ancestors` there (the app can't
+   know your domains). Keep the proxy body limit ≥ `MAX_REQUEST_BYTES`.
+4. Health checks: `/health` (liveness) and `/ready` (readiness, 503 until Mongo
+   answers). `/ready` is what a load balancer should poll.
+5. Verify before announcing: `python -m scripts.smoke_test_ai`, then a manual
+   browser pass (signup → resume/JD → text answer → voice answer → complete →
+   report) in Chrome and Safari. The full checklist is in
+   [`PRODUCTION_READINESS_REPORT.md`](./PRODUCTION_READINESS_REPORT.md#9-production-deployment-checklist).
+
+## Security notes
+
+- Sessions are HTTP-only cookies; `Secure` whenever `ENV != development`, and
+  `SameSite=None` is rejected unless the cookie is also Secure.
+- `/auth/login` and `/auth/register` are rate-limited per client + email.
+- Every interview endpoint is scoped to its owner and returns 404 (not 403) for
+  someone else's interview.
+- Uploads are capped and validated by content type *and* magic bytes; PDF/DOCX
+  text is parsed, never executed.
+- Resume, JD, and answer text are treated as untrusted data: they are wrapped in
+  `<untrusted_*>` blocks with injection markers neutralized, and the system
+  prompts state that the block must never be followed as instructions.
+- Provider errors are classified and mapped to fixed user-safe messages; the raw
+  error never reaches the client. Logs are server-side only.
+- Webcam frames never leave the browser — the API has no endpoint that accepts
+  image or video data, only the three aggregate rates.

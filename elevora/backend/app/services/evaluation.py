@@ -19,8 +19,13 @@ from app.schemas.report import DIMENSION_NAMES, Confidence, DimensionScore, Inte
 from app.schemas.webcam import WebcamMetrics
 from app.services import prompts
 from app.services.ai_client import AIClient
+from app.services.claims import acquire_claim, release_claim
 from app.services.deterministic_scoring import score_delivery, score_webcam
-from app.services.interview_engine import InterviewStateError
+from app.services.interview_engine import (
+    REPORT_CLAIM_FIELD,
+    InterviewConflictError,
+    InterviewStateError,
+)
 from app.services.profiles import load_profile
 from app.services.speech_analytics import aggregate_speech_metrics
 
@@ -140,20 +145,42 @@ async def generate_report(db: Any, ai_client: AIClient, interview: dict) -> Inte
             "interviews aren't scored."
         )
 
-    turns = [
-        turn
-        async for turn in db.interview_turns.find({"interviewId": str(interview["_id"])}).sort(
-            "sequence", 1
-        )
-    ]
-    if not turns:
-        raise InterviewStateError("This interview has no answered questions to evaluate.")
-
-    profile, _engine_settings = await load_profile(db, interview)
-    draft = await ai_client.generate_evaluation(
-        system=prompts.evaluation_system_prompt(profile),
-        user=prompts.evaluation_user_prompt(turns),
+    # Claim first: two concurrent "Generate report" clicks must not produce two
+    # billed evaluation calls and two racing writes.
+    claimed = await acquire_claim(
+        db,
+        collection="interviews",
+        document_id=interview["_id"],
+        field=REPORT_CLAIM_FIELD,
+        extra_filter={"status": "completed"},
     )
+    if claimed is None:
+        raise InterviewConflictError(
+            "A report is already being generated for this interview — give it a moment."
+        )
+
+    try:
+        turns = [
+            turn
+            async for turn in db.interview_turns.find(
+                {"interviewId": str(claimed["_id"])}
+            ).sort("sequence", 1)
+        ]
+        if not turns:
+            raise InterviewStateError("This interview has no answered questions to evaluate.")
+
+        profile, _engine_settings = await load_profile(db, claimed)
+        draft = await ai_client.generate_evaluation(
+            system=prompts.evaluation_system_prompt(profile),
+            user=prompts.evaluation_user_prompt(turns),
+        )
+    except Exception:
+        # Not swallowed: release the claim so the candidate can retry at once,
+        # then re-raise the original error for the caller to classify.
+        await release_claim(
+            db, collection="interviews", document_id=claimed["_id"], field=REPORT_CLAIM_FIELD
+        )
+        raise
 
     dimension_scores: dict[str, int | None] = {
         "knowledge": draft.knowledgeScore,
@@ -182,22 +209,37 @@ async def generate_report(db: Any, ai_client: AIClient, interview: dict) -> Inte
         dimension_scores["delivery"] = delivery_score
         evidence["delivery"] = delivery_evidence
 
-    webcam_raw = interview.get("webcamMetrics")
+    webcam_raw = claimed.get("webcamMetrics")
     if webcam_raw is not None:
         webcam_score, webcam_evidence = score_webcam(WebcamMetrics(**webcam_raw))
         dimension_scores["webcam"] = webcam_score
         evidence["webcam"] = webcam_evidence
 
-    weights = weight_profile_for_category(interview["category"])
+    weights = weight_profile_for_category(claimed["category"])
     overall_score, category_scores = compute_weighted_score(dimension_scores, weights)
+    # Renormalized the same way compute_weighted_score does, so the UI can show
+    # exactly which dimensions made up the number above.
+    available_weight_total = sum(
+        weights.get(name, 0.0) for name, score in dimension_scores.items() if score is not None
+    )
+    effective_weights = (
+        {
+            name: round(weights.get(name, 0.0) / available_weight_total, 3)
+            for name, score in dimension_scores.items()
+            if score is not None
+        }
+        if available_weight_total > 0
+        else {}
+    )
 
     distinct_topics = len({turn["topic"] for turn in turns})
     confidence = compute_confidence(turn_count=len(turns), distinct_topics=distinct_topics)
 
     report = InterviewReport(
-        interviewId=str(interview["_id"]),
+        interviewId=str(claimed["_id"]),
         overallScore=overall_score,
         categoryScores=category_scores,
+        weights=effective_weights,
         dimensions={
             name: DimensionScore(score=dimension_scores[name], evidence=evidence[name])
             for name in DIMENSION_NAMES
@@ -211,8 +253,11 @@ async def generate_report(db: Any, ai_client: AIClient, interview: dict) -> Inte
     )
 
     await db.interviews.update_one(
-        {"_id": interview["_id"]},
-        {"$set": {"report": report.model_dump(), "overallScore": overall_score}},
+        {"_id": claimed["_id"]},
+        {
+            "$set": {"report": report.model_dump(), "overallScore": overall_score},
+            "$unset": {REPORT_CLAIM_FIELD: ""},
+        },
     )
 
     return report

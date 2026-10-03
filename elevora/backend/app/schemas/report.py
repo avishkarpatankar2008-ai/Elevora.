@@ -30,6 +30,10 @@ class InterviewReport(BaseModel):
     interviewId: str
     overallScore: int  # 0-100, computed deterministically from available dimensions
     categoryScores: dict[str, int]  # 0-100 per dimension, only dimensions that are available
+    # Effective share of the overall score contributed by each available
+    # dimension (renormalized, sums to ~1.0). Exposed so the UI can explain the
+    # arithmetic instead of asking the candidate to trust a number.
+    weights: dict[str, float] = {}
     dimensions: dict[str, DimensionScore]  # all 7 names from DIMENSION_NAMES, always present
     strengths: list[str]
     weaknesses: list[str]
