@@ -7,6 +7,12 @@ import type { Config } from "tailwindcss";
  * palette can be inspected (or tuned) in one place and consumed from plain CSS
  * as well as Tailwind utilities.
  *
+ * Type weights in use: 400 body, 500 labels, 600 UI, 700 headings and hero.
+ * The 800 hero weight from the brief is intentionally not used: the bundled
+ * Inter subset (app/fonts/) ships 400-700, and asking for an unbundled weight
+ * would make the browser synthesise it. Fonts must never be fetched from a CDN
+ * at build time, so the type scale stops at 700.
+ *
  * Contrast measured against the #0B1B32 canvas (WCAG 2.1):
  *   ink #F7F4F6 ≈ 14.8:1   ink-soft #C7D1DD ≈ 9.6:1   ink-mute #93A3B8 ≈ 5.4:1
  *   blue #83A6CE ≈ 6.9:1 (links, icons)                 plum #C48CB3 ≈ 6.6:1
