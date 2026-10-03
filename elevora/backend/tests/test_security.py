@@ -412,3 +412,31 @@ async def test_empty_upload_is_rejected(client, user_payload, fake_ai_client):
     )
     assert resp.status_code == 422
     assert fake_ai_client.candidate_extraction_calls == []
+
+
+async def test_patch_me_persists_room_preferences(client, user_payload):
+    """autoPlayQuestion / cameraEnabledByDefault are read by the interview room,
+    so they have to survive a round trip and not clobber the other keys."""
+    await client.post("/auth/register", json=user_payload)
+
+    resp = await client.patch(
+        "/auth/me",
+        json={"preferences": {"autoPlayQuestion": True, "cameraEnabledByDefault": False}},
+    )
+    assert resp.status_code == 200
+    preferences = resp.json()["preferences"]
+    assert preferences["autoPlayQuestion"] is True
+    assert preferences["cameraEnabledByDefault"] is False
+    # Untouched keys keep their defaults.
+    assert preferences["language"] == "English"
+    assert preferences["defaultDifficulty"] == "medium"
+
+    persisted = (await client.get("/auth/me")).json()["preferences"]
+    assert persisted["autoPlayQuestion"] is True
+    assert persisted["cameraEnabledByDefault"] is False
+
+
+async def test_patch_me_rejects_non_boolean_preference(client, user_payload):
+    await client.post("/auth/register", json=user_payload)
+    resp = await client.patch("/auth/me", json={"preferences": {"autoPlayQuestion": "yes"}})
+    assert resp.status_code == 422

@@ -3,6 +3,10 @@ export type UserDifficulty = "easy" | "medium" | "hard";
 export interface UserPreferences {
   language: string;
   defaultDifficulty: UserDifficulty;
+  /** Speak each new question aloud automatically when it arrives. */
+  autoPlayQuestion: boolean;
+  /** Start sessions with the self-view camera already enabled. */
+  cameraEnabledByDefault: boolean;
 }
 
 export const LANGUAGE_OPTIONS = [

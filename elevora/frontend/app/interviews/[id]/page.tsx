@@ -2,160 +2,63 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/Alert";
-import { Button } from "@/components/Button";
-import { CameraPreview, type CameraStatus } from "@/components/CameraPreview";
+import { Badge } from "@/components/Badge";
+import { Button, ButtonLink } from "@/components/Button";
 import { Card } from "@/components/Card";
-import { InterviewTimer } from "@/components/InterviewTimer";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Skeleton } from "@/components/Skeleton";
+import { InterviewTimer } from "@/components/InterviewTimer";
+import { AnswerComposer } from "@/components/interview/AnswerComposer";
+import { ConversationTimeline, ConversationTurnView } from "@/components/interview/ConversationTimeline";
+import { RoomControls } from "@/components/interview/RoomControls";
+import { SessionPanel } from "@/components/interview/SessionPanel";
 import { ResumeJdUpload } from "@/components/ResumeJdUpload";
-import { Textarea } from "@/components/Textarea";
-import { VoiceControls, type RecordingState } from "@/components/VoiceControls";
+import type { CameraStatus } from "@/components/CameraPreview";
+import type { RecordingState } from "@/components/VoiceControls";
 import { ApiError, interviewsApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { INTERVIEW_CATEGORIES, type Interview, type InterviewTurn } from "@/lib/types";
 import { WebcamAnalyticsTracker, type TrackerStatus } from "@/lib/webcamAnalytics";
 
 function categoryLabel(value: string) {
-  return INTERVIEW_CATEGORIES.find((c) => c.value === value)?.label ?? value;
+  return INTERVIEW_CATEGORIES.find((category) => category.value === value)?.label ?? value;
 }
 
+const STATUS_TONE = {
+  draft: "neutral",
+  in_progress: "blue",
+  completed: "success",
+  abandoned: "warning",
+} as const;
+
 const STATUS_COPY: Record<Interview["status"], string> = {
-  draft: "Not started",
+  draft: "Ready to start",
   in_progress: "In progress",
   completed: "Completed",
   abandoned: "Ended early",
 };
 
-/** Delivery numbers that were actually measured from this answer's audio. */
-function SpeechMetricsRow({ turn }: { turn: Pick<InterviewTurn, "speechMetrics"> }) {
-  const metrics = turn.speechMetrics;
-  if (!metrics) return null;
+function interviewTitle(interview: Interview) {
+  const parts = [
+    categoryLabel(interview.category),
+    interview.role,
+    interview.company,
+    interview.exam,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function supportsMicrophone() {
   return (
-    <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-400">
-      <div className="flex gap-1">
-        <dt>Pace</dt>
-        <dd className="text-ink-600">{Math.round(metrics.wordsPerMinute)} WPM</dd>
-      </div>
-      <div className="flex gap-1">
-        <dt>Fillers</dt>
-        <dd className="text-ink-600">{metrics.fillerCount}</dd>
-      </div>
-      <div className="flex gap-1">
-        <dt>Longest pause</dt>
-        <dd className="text-ink-600">{metrics.longestPauseSeconds.toFixed(1)}s</dd>
-      </div>
-    </dl>
+    typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getUserMedia === "function"
   );
 }
 
-/** A completed Q&A exchange, rendered the same way whether it came from
- * history (GET /turns) or was just answered in this session. */
-function TurnBubbles({ turn }: { turn: InterviewTurn }) {
-  return (
-    <article className="space-y-3">
-      <div className={`rounded-xl p-4 ${turn.isFollowUp ? "bg-accent-100" : "bg-surface-muted"}`}>
-        <p className="text-xs font-semibold uppercase tracking-wide text-accent-300">
-          {turn.isFollowUp ? "Interviewer follows up" : `Interviewer · ${turn.topic}`}
-        </p>
-        <p className="mt-1.5 text-sm leading-6 text-ink-900">{turn.question}</p>
-      </div>
-      <div className="rounded-xl border border-white/[0.08] p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">You</p>
-        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-ink-600">{turn.answer}</p>
-        <SpeechMetricsRow turn={turn} />
-      </div>
-    </article>
-  );
-}
-
-/**
- * Fetches and plays the current question as spoken audio.
- *
- * Playback is user-initiated (never autoplayed) so it isn't blocked by browser
- * autoplay policies. The object URL is revoked on unmount so repeated plays
- * don't leak memory.
- */
-function PlayQuestionButton({
-  interviewId,
-  onSpeakingChange,
-}: {
-  interviewId: string;
-  onSpeakingChange?: (speaking: boolean) => void;
-}) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const urlRef = useRef<string | null>(null);
-
-  const cleanup = useCallback(() => {
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause();
-      cleanup();
-      onSpeakingChange?.(false);
-    };
-  }, [cleanup, onSpeakingChange]);
-
-  async function handlePlay() {
-    setError(null);
-    setIsLoading(true);
-    try {
-      const blob = await interviewsApi.questionAudio(interviewId);
-      cleanup();
-      const url = URL.createObjectURL(blob);
-      urlRef.current = url;
-
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-        audioRef.current.onplay = () => {
-          setIsPlaying(true);
-          onSpeakingChange?.(true);
-        };
-        const stop = () => {
-          setIsPlaying(false);
-          onSpeakingChange?.(false);
-        };
-        audioRef.current.onended = stop;
-        audioRef.current.onpause = stop;
-        audioRef.current.onerror = () => {
-          stop();
-          setError("The audio couldn't be played. Read the question above instead.");
-        };
-      }
-      audioRef.current.src = url;
-      await audioRef.current.play();
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Couldn't load the question audio. Read it above instead."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-3">
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={handlePlay}
-        isLoading={isLoading}
-        className="px-2 py-1.5 text-sm"
-      >
-        {isPlaying ? "🔊 Playing…" : "🔊 Play question aloud"}
-      </Button>
-      {error && <span className="text-sm text-ink-400">{error}</span>}
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Draft: the session exists but hasn't started, so it is still configurable.
+// ---------------------------------------------------------------------------
 
 function DraftView({
   interview,
@@ -179,124 +82,54 @@ function DraftView({
     }
   }
 
+  const facts: [string, string][] = [
+    ["Difficulty", interview.difficulty],
+    ["Length", `${interview.durationMinutes} minutes`],
+    ["Language", interview.language],
+    ...(interview.experienceLevel
+      ? ([["Experience", interview.experienceLevel]] as [string, string][])
+      : []),
+    ...(interview.maxQuestions ? ([["Questions", `${interview.maxQuestions}`]] as [string, string][]) : []),
+  ];
+
   return (
-    <>
-      <Card className="mt-6">
-        <dl className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <dt className="text-ink-400">Difficulty</dt>
-            <dd className="mt-1 capitalize text-ink-900">{interview.difficulty}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-400">Duration</dt>
-            <dd className="mt-1 text-ink-900">{interview.durationMinutes} minutes</dd>
-          </div>
-          {interview.experienceLevel && (
-            <div>
-              <dt className="text-ink-400">Experience level</dt>
-              <dd className="mt-1 capitalize text-ink-900">{interview.experienceLevel}</dd>
+    <div className="mt-6 space-y-5">
+      <Card>
+        <h2 className="text-sm font-semibold text-ink">Session plan</h2>
+        <p className="mt-1 text-xs text-ink-mute">
+          The interviewer plans roughly one question every three minutes and ends by question count,
+          not by a clock.
+        </p>
+        <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs uppercase tracking-[0.12em] text-ink-mute">{label}</dt>
+              <dd className="mt-1 text-sm font-medium capitalize text-ink">{value}</dd>
             </div>
-          )}
-          <div>
-            <dt className="text-ink-400">Language</dt>
-            <dd className="mt-1 text-ink-900">{interview.language}</dd>
-          </div>
+          ))}
         </dl>
       </Card>
 
       <ResumeJdUpload interview={interview} onUpdated={onUpdated} />
 
-      {error && <Alert tone="error" className="mt-4">{error}</Alert>}
+      {error && <Alert tone="error">{error}</Alert>}
 
-      <div className="mt-6">
-        <Button onClick={handleStart} isLoading={isStarting}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Button size="lg" onClick={handleStart} isLoading={isStarting}>
           Start interview
         </Button>
-        <p className="mt-2 text-xs text-ink-400">
-          You can&apos;t change the resume, job description, or settings after this point.
+        <p className="text-xs leading-5 text-ink-mute">
+          The resume, job description and settings lock once you start. You can still end early at
+          any point.
         </p>
-      </div>
-    </>
-  );
-}
-
-const RECORDING_LABEL: Record<RecordingState, string> = {
-  idle: "Mic idle",
-  recording: "Recording",
-  processing: "Transcribing…",
-};
-
-const CAMERA_LABEL: Record<CameraStatus, string> = {
-  idle: "Camera off",
-  requesting: "Requesting camera…",
-  active: "Camera on",
-  denied: "Camera blocked",
-  unavailable: "Camera unavailable",
-  disconnected: "Camera disconnected",
-};
-
-function RoomStatusBar({
-  interview,
-  recordingState,
-  cameraStatus,
-  isSpeaking,
-  cameraEnabled,
-  onToggleCamera,
-  onExit,
-  isExiting,
-}: {
-  interview: Interview;
-  recordingState: RecordingState;
-  cameraStatus: CameraStatus;
-  isSpeaking: boolean;
-  cameraEnabled: boolean;
-  onToggleCamera: () => void;
-  onExit: () => void;
-  isExiting: boolean;
-}) {
-  const [confirmingExit, setConfirmingExit] = useState(false);
-
-  return (
-    <div className="rounded-xl border border-white/[0.08] bg-surface px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          {interview.startedAt && (
-            <InterviewTimer startedAt={interview.startedAt} targetMinutes={interview.durationMinutes} />
-          )}
-          <span className="text-ink-600" aria-live="polite">
-            {RECORDING_LABEL[recordingState]}
-          </span>
-          <button
-            type="button"
-            onClick={onToggleCamera}
-            className="text-ink-600 underline-offset-2 hover:text-ink-900 hover:underline"
-          >
-            {CAMERA_LABEL[cameraStatus]} {cameraEnabled ? "(turn off)" : "(turn on)"}
-          </button>
-          {isSpeaking && <span className="text-accent-300">🔊 Question playing…</span>}
-        </div>
-
-        {confirmingExit ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-ink-600">
-              End now? What you&apos;ve answered is saved but won&apos;t be scored.
-            </span>
-            <Button variant="danger" onClick={onExit} isLoading={isExiting}>
-              Confirm exit
-            </Button>
-            <Button variant="ghost" onClick={() => setConfirmingExit(false)}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <Button variant="secondary" onClick={() => setConfirmingExit(true)}>
-            End interview
-          </Button>
-        )}
       </div>
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Live room
+// ---------------------------------------------------------------------------
 
 function LiveInterviewView({
   interview,
@@ -309,25 +142,40 @@ function LiveInterviewView({
   onUpdate: (interview: Interview, newTurn?: InterviewTurn) => void;
   onExited: () => void;
 }) {
+  const { user } = useAuth();
   const [answer, setAnswer] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
-  const [cameraEnabled, setCameraEnabled] = useState(true);
+  // Honours the saved "start with the camera on" preference, defaulting to on.
+  const [cameraEnabled, setCameraEnabled] = useState(
+    user?.preferences.cameraEnabledByDefault ?? true
+  );
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
   const [analyticsStatus, setAnalyticsStatus] = useState<TrackerStatus>("idle");
   const [analyticsSamples, setAnalyticsSamples] = useState(0);
+  const [recordSignal, setRecordSignal] = useState(0);
+  const [stopSignal, setStopSignal] = useState(0);
+  const [micAvailable, setMicAvailable] = useState(true);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const trackerRef = useRef<WebcamAnalyticsTracker | null>(null);
   if (trackerRef.current === null) trackerRef.current = new WebcamAnalyticsTracker();
+
+  useEffect(() => {
+    setMicAvailable(supportsMicrophone());
+  }, []);
 
   const handleFrameSample = useCallback((video: HTMLVideoElement) => {
     const tracker = trackerRef.current;
     if (!tracker) return;
     void tracker.sample(video).then(() => {
-      setAnalyticsStatus((previous) => (previous === tracker.getStatus() ? previous : tracker.getStatus()));
+      setAnalyticsStatus((previous) =>
+        previous === tracker.getStatus() ? previous : tracker.getStatus()
+      );
       setAnalyticsSamples(tracker.getSampleCount());
     });
   }, []);
@@ -338,8 +186,8 @@ function LiveInterviewView({
     try {
       await interviewsApi.submitWebcamMetrics(interview.id, aggregate);
     } catch {
-      // Best-effort: the report shows "Not available" for webcam rather than
-      // a fabricated number.
+      // Best-effort by design: the report shows "Not available" for webcam
+      // rather than a fabricated number.
     }
   }
 
@@ -376,13 +224,10 @@ function LiveInterviewView({
       },
       newTurn
     );
-    if (result.status === "completed") {
-      void submitWebcamMetricsIfAvailable();
-    }
+    if (result.status === "completed") void submitWebcamMetricsIfAvailable();
   }
 
-  async function handleTextSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function handleTextSubmit() {
     const questionJustAnswered = interview.pendingQuestion;
     if (!questionJustAnswered || !answer.trim()) return;
 
@@ -400,7 +245,7 @@ function LiveInterviewView({
       setError(
         err instanceof ApiError
           ? err.message
-          : "Something went wrong submitting your answer. Your text is still below — try again."
+          : "Something went wrong submitting your answer. Your text is still in the box — try again."
       );
     } finally {
       setIsBusy(false);
@@ -421,7 +266,11 @@ function LiveInterviewView({
       );
       applyResult(questionJustAnswered, result.transcript, result);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't submit your voice answer. Try the text box instead.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Couldn't submit your voice answer. Try the text box instead — your recording was not lost in the interview record."
+      );
     } finally {
       setIsBusy(false);
     }
@@ -431,173 +280,204 @@ function LiveInterviewView({
     setIsExiting(true);
     setError(null);
     try {
-      // Webcam metrics must land before /exit — the endpoint only accepts
-      // them while the interview is in progress.
+      // Webcam metrics must land before /exit — that endpoint only accepts them
+      // while the interview is in progress.
       await submitWebcamMetricsIfAvailable();
       await interviewsApi.exit(interview.id);
       onExited();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't end the interview. Try again.");
       setIsExiting(false);
+      setConfirmExit(false);
     }
   }
 
   const answeredSoFar = turns.length;
-  const questionNumberShown = Math.min(answeredSoFar + (interview.pendingQuestion ? 1 : 0), interview.maxQuestions ?? Infinity);
+  const questionNumberShown = Math.min(
+    answeredSoFar + (interview.pendingQuestion ? 1 : 0),
+    interview.maxQuestions ?? Number.POSITIVE_INFINITY
+  );
+  const progressPercent = interview.maxQuestions
+    ? Math.min(100, (answeredSoFar / interview.maxQuestions) * 100)
+    : null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <RoomStatusBar
-        interview={interview}
-        recordingState={recordingState}
-        cameraStatus={cameraStatus}
-        isSpeaking={isSpeaking}
-        cameraEnabled={cameraEnabled}
-        onToggleCamera={() => setCameraEnabled((previous) => !previous)}
-        onExit={handleExit}
-        isExiting={isExiting}
-      />
+    <div className="flex flex-col">
+      {/* Status strip ---------------------------------------------------- */}
+      <div className="glass mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl px-4 py-3">
+        <span className="flex items-center gap-2 text-sm">
+          <span
+            aria-hidden="true"
+            className={`h-2 w-2 rounded-full ${
+              recordingState === "recording" ? "animate-pulse-soft bg-danger" : "bg-blue/70"
+            }`}
+          />
+          <span className="text-ink-soft" aria-live="polite">
+            {recordingState === "idle"
+              ? "Microphone ready"
+              : recordingState === "recording"
+                ? "Recording…"
+                : "Transcribing…"}
+          </span>
+        </span>
 
-      {interview.maxQuestions && (
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-ink-400">
-            Question {questionNumberShown} of {interview.maxQuestions}
-          </p>
-          <div
-            className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={interview.maxQuestions}
-            aria-valuenow={Math.min(answeredSoFar, interview.maxQuestions)}
-            aria-label="Interview progress"
-          >
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-accent-600 to-accent-300 transition-[width] duration-500"
-              style={{ width: `${(answeredSoFar / interview.maxQuestions) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
+        {interview.maxQuestions && (
+          <span className="flex flex-1 items-center gap-3">
+            <span className="whitespace-nowrap text-sm text-ink-soft">
+              Question <span className="font-semibold text-ink">{Math.max(1, questionNumberShown)}</span> of{" "}
+              {interview.maxQuestions}
+            </span>
+            <span
+              className="hidden h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08] sm:block"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={interview.maxQuestions}
+              aria-valuenow={Math.min(answeredSoFar, interview.maxQuestions)}
+              aria-label="Interview progress"
+            >
+              <span
+                className="block h-full rounded-full bg-gradient-to-r from-blue to-plum transition-[width] duration-500 ease-spring"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </span>
+          </span>
+        )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="space-y-6">
-          {turns.map((turn) => (
-            <TurnBubbles key={turn.sequence} turn={turn} />
-          ))}
+        <span className="flex items-center gap-2 text-sm">
+          <span
+            aria-hidden="true"
+            className={`h-2 w-2 rounded-full ${
+              cameraStatus === "active" ? "bg-success" : "bg-ink-mute"
+            }`}
+          />
+          <span className="text-ink-mute">
+            {cameraEnabled && cameraStatus === "active" ? "Camera active" : "Camera off"}
+          </span>
+        </span>
 
-          {interview.pendingQuestion && (
-            <div>
-              <div
-                className={`rounded-xl p-4 ${
-                  interview.pendingQuestion.isFollowUp ? "bg-accent-100" : "bg-surface-muted"
-                }`}
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-accent-300">
-                  {interview.pendingQuestion.isFollowUp
-                    ? "Interviewer follows up"
-                    : `Interviewer · ${interview.pendingQuestion.topic}`}
-                </p>
-                <p className="mt-1.5 text-sm leading-6 text-ink-900">
-                  {interview.pendingQuestion.question}
-                </p>
-              </div>
-              <PlayQuestionButton interviewId={interview.id} onSpeakingChange={setIsSpeaking} />
-            </div>
-          )}
+        <Button variant="ghost" size="sm" onClick={() => setConfirmExit(true)} disabled={isBusy}>
+          End interview
+        </Button>
+      </div>
+
+      {/* Conversation + session panel ------------------------------------ */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="min-w-0">
+          <ConversationTimeline
+            interview={interview}
+            turns={turns}
+            isSpeaking={isSpeaking}
+            onSpeakingChange={setIsSpeaking}
+            awaitingNextQuestion={isBusy && !interview.pendingQuestion}
+            autoPlayQuestion={user?.preferences.autoPlayQuestion ?? false}
+          />
 
           {interview.pendingQuestion ? (
-            <div className="flex flex-col gap-4">
-              <VoiceControls
-                onRecorded={handleAudioRecorded}
-                onStateChange={setRecordingState}
-                disabled={isBusy}
-              />
-
-              <form onSubmit={handleTextSubmit} className="flex flex-col gap-3">
-                <Textarea
-                  name="answer"
-                  label="Your answer"
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  rows={5}
-                  placeholder="Type your answer here, or record it above…"
-                  disabled={isBusy}
-                  hint={`${answer.trim() ? answer.trim().split(/\s+/).length : 0} words`}
-                />
-                {error && <Alert tone="error">{error}</Alert>}
-                <div>
-                  <Button type="submit" isLoading={isBusy} disabled={!answer.trim()}>
-                    Submit answer
-                  </Button>
-                </div>
-              </form>
-            </div>
+            <AnswerComposer
+              textareaRef={textareaRef}
+              answer={answer}
+              onAnswerChange={setAnswer}
+              onSubmit={handleTextSubmit}
+              onRecorded={handleAudioRecorded}
+              onRecordingStateChange={setRecordingState}
+              disabled={recordingState !== "idle"}
+              isBusy={isBusy}
+              error={error}
+              startSignal={recordSignal}
+              stopSignal={stopSignal}
+              micAvailable={micAvailable}
+            />
           ) : (
-            <p className="text-sm text-ink-400" role="status">
-              Finishing up…
+            <p className="mt-6 text-sm text-ink-soft" role="status">
+              {isBusy ? "Generating the next question…" : "Finishing up…"}
             </p>
           )}
         </div>
 
-        <div className="lg:sticky lg:top-20 lg:self-start">
-          <CameraPreview
-            enabled={cameraEnabled}
-            onStatusChange={setCameraStatus}
+        <div className="lg:sticky lg:top-24">
+          <SessionPanel
+            interview={interview}
+            turns={turns}
+            questionNumberShown={Math.max(1, questionNumberShown)}
+            cameraEnabled={cameraEnabled}
+            onToggleCamera={() => setCameraEnabled((previous) => !previous)}
+            cameraStatus={cameraStatus}
             onFrameSample={handleFrameSample}
-            footnote="Self-view only. Frames stay in your browser; only aggregate rates are saved with this interview."
+            analyticsStatus={analyticsStatus}
+            analyticsSamples={analyticsSamples}
+            recordingState={recordingState}
+            isSpeaking={isSpeaking}
           />
-          <p className="mt-2 text-xs leading-5 text-ink-400">
-            {cameraEnabled && cameraStatus === "active" && analyticsStatus === "ready" && (
-              <>On-device analysis running · {analyticsSamples} samples</>
-            )}
-            {cameraEnabled && cameraStatus === "active" && analyticsStatus === "initializing" && (
-              <>Starting on-device analysis…</>
-            )}
-            {cameraEnabled && cameraStatus === "active" && analyticsStatus === "failed" && (
-              <>
-                On-device analysis couldn&apos;t start in this browser, so the webcam part of your
-                report will say &ldquo;Not available&rdquo;. The interview itself is unaffected.
-              </>
-            )}
-            {(!cameraEnabled || cameraStatus !== "active") && (
-              <>
-                Webcam scoring needs the camera on for part of the session. With it off, the report
-                shows &ldquo;Not available&rdquo; for webcam rather than a guess.
-              </>
-            )}
-          </p>
         </div>
       </div>
+
+      <RoomControls
+        recordingState={recordingState}
+        cameraEnabled={cameraEnabled}
+        cameraStatus={cameraStatus}
+        isBusy={isBusy}
+        canSubmit={Boolean(answer.trim()) && Boolean(interview.pendingQuestion)}
+        onRecord={() => {
+          setRecordSignal((signal) => signal + 1);
+        }}
+        onStopRecording={() => setStopSignal((signal) => signal + 1)}
+        onToggleCamera={() => setCameraEnabled((previous) => !previous)}
+        onFocusText={() => textareaRef.current?.focus()}
+        onSubmit={handleTextSubmit}
+        confirmExit={confirmExit}
+        onRequestExit={() => setConfirmExit(true)}
+        onCancelExit={() => setConfirmExit(false)}
+        onConfirmExit={handleExit}
+        isExiting={isExiting}
+        showNextLocked={Boolean(interview.pendingQuestion)}
+      />
     </div>
   );
 }
 
-function CompletedView({ interviewId }: { interviewId: string }) {
+// ---------------------------------------------------------------------------
+// Terminal states
+// ---------------------------------------------------------------------------
+
+function CompletedView({ interview }: { interview: Interview }) {
   return (
-    <Card className="mt-6 bg-surface-muted">
-      <p className="text-sm font-medium text-ink-900">Interview completed</p>
-      <p className="mt-2 text-sm text-ink-600">
-        The transcript above is what you actually said. Generate a scored, evidence-based report
-        whenever you&apos;re ready to see how it went.
+    <Card className="mt-6" tone="brand">
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge tone="success">Interview completed</Badge>
+        <span className="text-xs text-ink-mute">
+          {interview.questionNumber} questions answered
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-ink-soft">
+        The transcript above is what you actually said. Generate the scored, evidence-based report
+        whenever you&apos;re ready — it analyses the answers in this session and nothing else.
       </p>
-      <Link href={`/results/${interviewId}`} className="mt-3 inline-block text-sm text-accent-300 hover:text-accent">
-        View performance report →
-      </Link>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <ButtonLink href={`/results/${interview.id} `}>View performance report</ButtonLink>
+        <ButtonLink href="/interviews/new" variant="secondary">Practise again</ButtonLink>
+      </div>
     </Card>
   );
 }
 
 function AbandonedView() {
   return (
-    <Card className="mt-6 bg-surface-muted">
-      <p className="text-sm font-medium text-ink-900">You ended this interview early</p>
-      <p className="mt-2 text-sm text-ink-600">
-        Whatever you answered before exiting is saved above. This session won&apos;t be scored —
-        start a new interview when you&apos;re ready to try again.
+    <Card className="mt-6" tone="warning">
+      <Badge tone="warning">Ended early</Badge>
+      <p className="mt-3 text-sm leading-6 text-ink-soft">
+        Whatever you answered before exiting is saved above. This session isn&apos;t scored — start a
+        new interview when you&apos;re ready to try again.
       </p>
+      <div className="mt-4">
+        <ButtonLink href="/interviews/new" variant="secondary">Start a new interview</ButtonLink>
+      </div>
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Data loading shell
+// ---------------------------------------------------------------------------
 
 function InterviewRoom({ id }: { id: string }) {
   const router = useRouter();
@@ -622,21 +502,21 @@ function InterviewRoom({ id }: { id: string }) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setLoadError(
           err instanceof ApiError && err.status === 404
-            ? "Interview not found."
-            : "Couldn't load this interview."
+            ? "This interview doesn't exist, or it belongs to another account."
+            : "We couldn't load this interview. Check your connection and try again."
         );
       })
       .finally(() => setIsLoading(false));
     return () => controller.abort();
   }, [id]);
 
-  async function refetchTurns() {
+  const refetchTurns = useCallback(async () => {
     try {
       setTurns(await interviewsApi.turns(id));
     } catch {
-      // Non-fatal: the room still renders from local state.
+      // Non-fatal: the room still renders from the state it already has.
     }
-  }
+  }, [id]);
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -645,26 +525,45 @@ function InterviewRoom({ id }: { id: string }) {
       await interviewsApi.remove(id);
       router.push("/dashboard");
     } catch (err) {
-      setDeleteError(err instanceof ApiError ? err.message : "Couldn't delete this interview.");
+      setDeleteError(
+        err instanceof ApiError ? err.message : "Couldn't delete this interview. Try again."
+      );
       setIsDeleting(false);
     }
   }
 
+  const heading = useMemo(() => (interview ? interviewTitle(interview) : ""), [interview]);
+
   if (loadError) {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-12 sm:px-6">
+      <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
         <Alert tone="error">{loadError}</Alert>
-        <Link href="/dashboard" className="mt-4 inline-block text-sm text-accent-300 hover:text-accent">
-          Back to dashboard
-        </Link>
+        <div className="mt-5 flex gap-2">
+          <ButtonLink href="/dashboard" variant="secondary">Back to dashboard</ButtonLink>
+          <Button variant="ghost" onClick={() => router.refresh()}>
+            Try again
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (isLoading || !interview) {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-12 text-sm text-ink-600 sm:px-6" role="status">
-        Loading interview…
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8" aria-busy="true">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="mt-4 h-8 w-72" />
+        <Skeleton className="mt-6 h-16 rounded-2xl" />
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-4">
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+          </div>
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+        <p className="sr-only" role="status">
+          Loading interview…
+        </p>
       </div>
     );
   }
@@ -672,72 +571,72 @@ function InterviewRoom({ id }: { id: string }) {
   const isLive = interview.status === "in_progress";
 
   return (
-    <div className={`mx-auto px-5 py-8 sm:px-6 lg:py-10 ${isLive ? "max-w-5xl" : "max-w-3xl"}`}>
-      <Link href="/dashboard" className="text-sm text-accent-300 hover:text-accent">
+    <div className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${isLive ? "max-w-6xl" : "max-w-4xl"}`}>
+      <Link href="/dashboard" className="text-sm text-ink-mute transition-colors hover:text-ink">
         ← Back to dashboard
       </Link>
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-ink-900 sm:text-2xl">
-          {categoryLabel(interview.category)}
-          {interview.role ? ` — ${interview.role}` : ""}
-        </h1>
-        <span className="rounded-full border border-white/12 bg-white/[0.05] px-3 py-1 text-xs text-ink-600">
-          {STATUS_COPY[interview.status]}
-        </span>
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">{heading}</h1>
+          <p className="mt-1 text-xs text-ink-mute">
+            Started{" "}
+            {new Date(interview.startedAt ?? interview.createdAt).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </p>
+        </div>
+        <Badge tone={STATUS_TONE[interview.status]}>{STATUS_COPY[interview.status]}</Badge>
       </div>
 
-      {interview.status === "draft" && (
-        <DraftView
-          interview={interview}
-          onUpdated={setInterview}
-        />
-      )}
+      {interview.status === "draft" && <DraftView interview={interview} onUpdated={setInterview} />}
 
       {isLive && (
-        <div className="mt-6">
-          <LiveInterviewView
-            interview={interview}
-            turns={turns}
-            onUpdate={(updated, newTurn) => {
-              setInterview(updated);
-              if (newTurn) setTurns((previous) => [...previous, newTurn]);
-              if (updated.status === "completed") void refetchTurns();
-            }}
-            onExited={() =>
-              setInterview({ ...interview, status: "abandoned", pendingQuestion: undefined })
-            }
-          />
-        </div>
+        <LiveInterviewView
+          interview={interview}
+          turns={turns}
+          onUpdate={(updated, newTurn) => {
+            setInterview(updated);
+            if (newTurn) setTurns((previous) => [...previous, newTurn]);
+            if (updated.status === "completed") void refetchTurns();
+          }}
+          onExited={() => setInterview({ ...interview, status: "abandoned", pendingQuestion: undefined })}
+        />
       )}
 
       {(interview.status === "completed" || interview.status === "abandoned") && (
         <>
           <div className="mt-6 space-y-6">
-            {turns.map((turn) => (
-              <TurnBubbles key={turn.sequence} turn={turn} />
-            ))}
+            {turns.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-line p-6 text-sm text-ink-soft">
+                No answers were recorded in this session.
+              </p>
+            ) : (
+              turns.map((turn) => <ConversationTurnView key={turn.sequence} turn={turn} />)
+            )}
           </div>
           {interview.status === "completed" ? (
-            <CompletedView interviewId={interview.id} />
+            <CompletedView interview={interview} />
           ) : (
             <AbandonedView />
           )}
         </>
       )}
 
-      <div className="mt-10 border-t border-white/[0.08] pt-6">
+      <div className="mt-10 border-t border-line pt-6">
         {isLive ? (
-          <p className="text-xs text-ink-400">
-            Delete is disabled while an interview is in progress — end it first.
+          <p className="text-xs leading-5 text-ink-mute">
+            Deleting is disabled while an interview is in progress — end it first so your transcript
+            is written completely.
           </p>
         ) : (
           <>
-            <Button variant="danger" onClick={handleDelete} isLoading={isDeleting}>
+            <Button variant="danger" size="sm" onClick={handleDelete} isLoading={isDeleting}>
               Delete this interview
             </Button>
-            <p className="mt-2 text-xs text-ink-400">
-              Deletes the interview, its transcript, and any generated report. This can&apos;t be
+            <p className="mt-2 text-xs leading-5 text-ink-mute">
+              Deletes the interview, its transcript and any generated report. This can&apos;t be
               undone.
             </p>
             {deleteError && (

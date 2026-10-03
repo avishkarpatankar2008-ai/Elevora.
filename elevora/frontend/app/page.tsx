@@ -1,158 +1,109 @@
-import Link from "next/link";
-import { Button } from "@/components/Button";
+import { Badge } from "@/components/Badge";
+import { Button, ButtonLink } from "@/components/Button";
+import { InterviewPreview } from "@/components/InterviewPreview";
 import { INTERVIEW_CATEGORIES } from "@/lib/types";
 
-const features = [
-  [
-    "01",
-    "Adaptive by design",
-    "Every answer changes the next question. Probe, challenge, redirect or advance — automatically.",
-  ],
-  [
-    "02",
-    "Grounded in you",
-    "Bring a resume and job description. ELEVORA asks about what you actually submitted, not invented experience.",
-  ],
-  [
-    "03",
-    "Evidence, not vibes",
-    "Your report connects scores to answer evidence and gives you a concrete practice path.",
-  ],
+const FEATURES = [
+  {
+    index: "01",
+    title: "Adaptive by design",
+    body: "Every answer changes the next question. Probe, challenge, redirect or advance — automatically, within the profile you chose.",
+  },
+  {
+    index: "02",
+    title: "Grounded in your material",
+    body: "Upload a resume and a job description. Questions come from what you actually submitted, never invented experience.",
+  },
+  {
+    index: "03",
+    title: "Evidence, not vibes",
+    body: "Every score in your report points at something you said. Measurements the platform doesn't have stay labelled unavailable.",
+  },
 ];
 
-const SESSION_SIGNALS = [
-  { label: "Technical depth", value: "Probed", width: "82%" },
-  { label: "Answer relevance", value: "Grounded", width: "91%" },
-  { label: "Follow-up pressure", value: "Active", width: "64%" },
+const STEPS = [
+  { title: "Configure", body: "Choose a profile, difficulty, language and length." },
+  { title: "Interview", body: "Answer out loud or by text; the interviewer follows up." },
+  { title: "Review", body: "Read the evidence behind each score, then practise again." },
 ];
 
 export default function LandingPage() {
   return (
     <div className="overflow-hidden">
-      <section className="relative grid-bg">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-[-180px] h-[520px] w-[760px] -translate-x-1/2 rounded-full bg-accent-600/12 blur-[120px]"
-        />
-        <div className="mx-auto max-w-7xl px-5 pb-20 pt-16 lg:px-8 lg:pb-24 lg:pt-28">
-          <div className="mx-auto max-w-4xl text-center">
-            <div className="eyebrow">AI interview practice, rebuilt</div>
-            <h1 className="mt-6 text-4xl font-semibold tracking-[-.05em] text-ink-900 sm:text-6xl lg:text-7xl">
-              Practice like the
-              <br />
-              <span className="bg-gradient-to-r from-ink-900 via-accent-300 to-accent-600 bg-clip-text text-transparent">
-                real interview.
-              </span>
-            </h1>
-            <p className="mx-auto mt-7 max-w-2xl text-base leading-7 text-ink-600 sm:text-lg">
-              ELEVORA listens to your answers, adapts in real time, and shows you exactly what to
-              improve — for roles, companies, exams and industries.
-            </p>
-            <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="/signup">
-                <Button className="h-12 w-full px-7 text-[15px] sm:w-auto">
-                  Start practicing <span aria-hidden="true">↗</span>
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button variant="secondary" className="h-12 w-full px-7 text-[15px] sm:w-auto">
-                  Sign in
-                </Button>
-              </Link>
-            </div>
-            <p className="mt-6 text-xs text-ink-400">
-              No fabricated scores. No scripted interviews. Just your practice data.
-            </p>
-          </div>
+      {/* Hero ---------------------------------------------------------------- */}
+      <section className="relative">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[560px] grid-bg" />
+        <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:px-8 lg:pb-24">
+          <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10">
+            <div className="max-w-xl">
+              <Badge tone="blue" className="animate-fade-up">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-blue" />
+                AI-powered interview practice
+              </Badge>
 
-          <div className="mx-auto mt-14 max-w-6xl lg:mt-16">
-            <div className="glass-strong glow overflow-hidden rounded-3xl">
-              <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
-                  <span className="text-xs uppercase tracking-[.18em] text-ink-400">
-                    Illustrative preview
-                  </span>
-                </div>
-                <div className="text-xs text-ink-400">Adaptive session</div>
+              <h1 className="mt-6 animate-fade-up text-display font-bold text-ink">
+                Practice smarter.
+                <br />
+                <span className="brand-text">Interview better.</span>
+              </h1>
+
+              <p className="mt-6 max-w-lg animate-fade-up text-base leading-7 text-ink-soft sm:text-lg">
+                ELEVORA listens to your answers, adapts in real time, and shows you exactly what to
+                improve — for roles, companies, exams and industries.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 animate-fade-up sm:flex-row">
+                <ButtonLink href="/signup" className="sm:w-auto w-full" size="lg">
+                    Start practising
+                    <span aria-hidden="true">→</span>
+                  </ButtonLink>
+                <ButtonLink href="/login" className="sm:w-auto w-full" size="lg" variant="secondary">
+                    Sign in
+                  </ButtonLink>
               </div>
-              <div className="grid min-h-[340px] lg:grid-cols-[1fr_300px]">
-                <div className="p-6 sm:p-10">
-                  <div className="text-xs font-medium text-accent-300">
-                    QUESTION 07 / ADAPTIVE
-                  </div>
-                  <h2 className="mt-5 max-w-2xl text-xl font-medium leading-8 tracking-tight text-ink-900 sm:text-3xl sm:leading-9">
-                    You mentioned reducing query latency. What did you measure before the change,
-                    and how did you validate the result?
-                  </h2>
-                  <div className="mt-10 flex items-center gap-4">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-accent-600/15 text-accent-300">
-                      ●
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-1 overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full w-[68%] rounded-full bg-gradient-to-r from-accent-600 to-accent-300" />
-                      </div>
-                      <div className="mt-2 text-[11px] text-ink-400">
-                        Listening · microphone ready
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="border-t border-white/[.07] bg-black/20 p-6 lg:border-l lg:border-t-0">
-                  <div className="text-[11px] uppercase tracking-[.18em] text-ink-400">
-                    Session signal
-                  </div>
-                  <div className="mt-6 space-y-4">
-                    {SESSION_SIGNALS.map((signal) => (
-                      <div key={signal.label}>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-ink-600">{signal.label}</span>
-                          <span className="text-ink-400">{signal.value}</span>
-                        </div>
-                        <div className="mt-2 h-1 rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-accent-600"
-                            style={{ width: signal.width }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+
+              <p className="mt-6 text-xs text-ink-mute">
+                No fabricated scores. No scripted interviews. Just your practice data.
+              </p>
             </div>
+
+            <InterviewPreview />
           </div>
         </div>
       </section>
 
-      <section className="border-y border-white/[.07] bg-navy-900">
-        <div className="mx-auto grid max-w-7xl gap-px bg-white/[.06] px-5 lg:grid-cols-3 lg:px-8">
-          {features.map(([n, title, body]) => (
-            <div key={n} className="bg-navy-900 px-2 py-10 lg:px-8 lg:py-12">
-              <div className="text-xs text-accent-300">{n}</div>
-              <h3 className="mt-4 text-xl font-semibold text-ink-900">{title}</h3>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-ink-600">{body}</p>
+      {/* Features ------------------------------------------------------------ */}
+      <section className="border-y border-line bg-navy-900/40">
+        <div className="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 lg:grid-cols-3 lg:px-8">
+          {FEATURES.map((feature) => (
+            <div key={feature.index} className="px-1 py-10 lg:px-8 lg:py-12">
+              <span className="text-xs font-semibold tracking-[0.2em] text-plum">
+                {feature.index}
+              </span>
+              <h2 className="mt-4 text-lg font-semibold text-ink">{feature.title}</h2>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-ink-soft">{feature.body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+      {/* Categories ---------------------------------------------------------- */}
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
-          <div className="eyebrow">One engine. Any target.</div>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-ink-900 sm:text-4xl">
+          <p className="eyebrow">One engine, any target</p>
+          <h2 className="mt-4 text-hero font-semibold text-ink">
             Prepare for the interview you actually have.
           </h2>
-          <p className="mt-4 text-ink-600">
-            Configure one engine for your role, exam, company, experience level and difficulty.
+          <p className="mt-4 text-ink-soft">
+            Configure a single adaptive engine for your role, exam, company, experience level and
+            difficulty — or build your own interview profile.
           </p>
         </div>
         <ul className="mt-8 flex flex-wrap gap-2">
           {INTERVIEW_CATEGORIES.map((category) => (
             <li
               key={category.value}
-              className="rounded-full border border-white/[.08] bg-white/[.025] px-4 py-2 text-sm text-ink-600"
+              className="rounded-full border border-line bg-white/[0.03] px-4 py-2 text-sm text-ink-soft transition-colors hover:border-blue/40 hover:text-ink"
             >
               {category.label}
             </li>
@@ -160,23 +111,48 @@ export default function LandingPage() {
         </ul>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pb-24 lg:px-8 lg:pb-28">
-        <div className="relative overflow-hidden rounded-3xl border border-accent/25 bg-gradient-to-br from-accent/[0.14] to-transparent p-8 sm:p-12">
+      {/* How it works -------------------------------------------------------- */}
+      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+          <div>
+            <p className="eyebrow">The loop</p>
+            <h2 className="mt-4 text-2xl font-semibold text-ink">
+              Three steps, repeated until it&apos;s automatic.
+            </h2>
+          </div>
+          <ol className="grid gap-4 sm:grid-cols-3">
+            {STEPS.map((step, index) => (
+              <li
+                key={step.title}
+                className="rounded-2xl border border-line bg-surface/60 p-5 backdrop-blur-md"
+              >
+                <span className="text-xs font-semibold text-blue">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h3 className="mt-3 text-sm font-semibold text-ink">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-ink-soft">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* CTA ----------------------------------------------------------------- */}
+      <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
+        <div className="relative overflow-hidden rounded-2xl border border-line-strong bg-panel-soft p-8 backdrop-blur-xl sm:p-12">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute right-[-100px] top-[-160px] h-80 w-80 rounded-full bg-accent-600/15 blur-[100px]"
+            className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-plum/[0.14] blur-3xl"
           />
           <div className="relative max-w-2xl">
-            <div className="eyebrow">Your next interview starts here</div>
-            <h2 className="mt-4 text-3xl font-semibold text-ink-900 sm:text-4xl">
-              Stop rehearsing answers. Start training judgment.
+            <p className="eyebrow">Your next interview starts here</p>
+            <h2 className="mt-4 text-2xl font-semibold text-ink sm:text-3xl">
+              Stop rehearsing answers. Start training judgement.
             </h2>
-            <p className="mt-4 text-ink-600">
+            <p className="mt-4 text-ink-soft">
               Build the skill to handle the unexpected question, not just the expected one.
             </p>
-            <Link href="/signup" className="mt-7 inline-block">
-              <Button className="h-11 px-6">Create your account</Button>
-            </Link>
+            <ButtonLink href="/signup" className="mt-7" size="lg">Create your account</ButtonLink>
           </div>
         </div>
       </section>

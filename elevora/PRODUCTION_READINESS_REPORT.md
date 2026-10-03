@@ -183,8 +183,11 @@ frames).
   memoized.
 
 **UX**
-- One dark design system with a restrained burnt-orange accent, measured contrast (ink-900 ≈ 16.9:1,
-  ink-600 ≈ 8.6:1, white on accent ≈ 4.7:1), consistent focus rings, and reduced-motion support.
+- One dark design system, centralised in `tailwind.config.ts` + `app/globals.css` (deep navy
+  surfaces, soft blue `#83A6CE` and plum `#C48CB3` accents), with measured contrast recorded next
+  to the tokens (lowest text pairing ≈ 5.4:1), consistent focus rings, and reduced-motion support.
+  *Superseded palette:* this report originally shipped with a burnt-orange accent; the interface
+  was subsequently redesigned onto the navy/plum tokens above.
 - Consistent inline `Alert` states (assertive for errors, polite for updates), explicit empty states,
   human-sized error copy, confirmation before destructive actions, and per-question progress.
 - The interface never invents a number: unavailable measurements are labelled "Not available" with

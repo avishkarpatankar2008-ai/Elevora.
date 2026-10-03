@@ -9,11 +9,9 @@ function formatDuration(totalSeconds: number): string {
 }
 
 /**
- * Shows elapsed time since the interview started. This is informational
- * only — it does not end the interview. The engine ends interviews by
- * question count (see backend/app/services/interview_engine.py), not wall
- * clock, so a candidate who thinks slowly isn't cut off mid-thought.
- * `targetMinutes` is shown purely as a reference point.
+ * Elapsed time since the interview started. Informational only — the engine
+ * ends interviews by question count, so a candidate who thinks slowly is never
+ * cut off. `targetMinutes` is a reference point, not a deadline.
  */
 export function InterviewTimer({
   startedAt,
@@ -33,10 +31,26 @@ export function InterviewTimer({
   }, [startedAt]);
 
   return (
-    <span className="font-mono text-sm tabular-nums text-ink-600">
-      <span className="sr-only">Elapsed time </span>
-      {formatDuration(elapsedSeconds)}
-      {targetMinutes ? ` / ~${targetMinutes}:00` : ""}
+    <span className="inline-flex items-center gap-2 rounded-lg border border-line bg-navy-950/40 px-2.5 py-1">
+      <svg
+        aria-hidden="true"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        className="text-blue"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+      <span className="font-mono text-xs tabular-nums text-ink-soft">
+        <span className="sr-only">Elapsed time </span>
+        {formatDuration(elapsedSeconds)}
+        {targetMinutes ? ` / ~${targetMinutes}:00` : ""}
+      </span>
     </span>
   );
 }

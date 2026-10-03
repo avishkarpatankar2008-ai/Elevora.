@@ -26,7 +26,17 @@ cp .env.example .env            # optional in dev; every value has a default
 cd ../frontend
 npm install
 npm run dev                     # http://localhost:3000
+
+# Production build (next.config.js uses output: "standalone")
+npm run build
+npm start                       # scripts/start-standalone.mjs — see note below
 ```
+
+`npm start` runs the standalone server after copying `public/` and
+`.next/static` beside it, which is what the Dockerfile does too. Plain
+`next start` is **not** used: Next.js does not support it with
+`output: "standalone"`, and it silently serves only a subset of routes (the
+rest 404).
 
 The browser only ever talks to the Next.js origin: `/api/*` is proxied
 server-side to `BACKEND_ORIGIN` (default `http://127.0.0.1:8000`), so the session
@@ -264,7 +274,7 @@ intended fallback.
 ```bash
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m pytest -q              # 231 passed (69s)
+.venv/bin/python -m pytest -q              # 233 passed (72s)
 .venv/bin/python -m scripts.smoke_test_ai  # real provider calls; needs keys
 ```
 
@@ -281,12 +291,36 @@ cd frontend
 npm install
 npm run typecheck   # tsc --noEmit
 npm run lint        # next lint (app, components, lib, tests)
-npm test            # vitest run — 23 tests
+npm test            # vitest run — 35 tests
 npm run build       # prebuild copies the MediaPipe WASM runtime, then builds
 ```
 
 Every backend variable (and its default) is documented in
 `backend/.env.example`; the frontend's are in `frontend/.env.local.example`.
+
+## Design system
+
+The interface is one dark system — deep navy surfaces, soft blue and plum
+accents — defined once and consumed everywhere:
+
+- `frontend/tailwind.config.ts` is the source of truth for colour, radius,
+  shadow, motion and type scale. Colours are declared as RGB triplets in
+  `frontend/app/globals.css` so Tailwind's alpha modifiers work on every token
+  (`bg-navy-950/60`, `border-plum/30`).
+- Palette: `#0B1B32` canvas, `#0D1E4C` / `#102746` / `#132D4A` surfaces,
+  `#26415E` elevated, `#83A6CE` primary, `#C48CB3` accent, `#E5C9D7` blush,
+  `#F7F4F6` / `#C7D1DD` / `#93A3B8` text. Contrast ratios are recorded next to
+  the tokens in the config; the lowest text pairing measures ≈5.4:1.
+- Four surface levels (page → card → elevated → glass) plus `.glass` /
+  `.glass-strong` for the navbar, the interview-room dock and floating panels.
+- Reusable primitives live in `frontend/components` (`Button`, `Card`, `Input`,
+  `Select`, `Textarea`, `Alert`, `Badge`, `Skeleton`, `EmptyState`, `ScoreRing`,
+  `StatCard`); interview-room pieces are in `components/interview/`.
+- Motion is 150–300 ms with a spring-like curve, and everything collapses under
+  `prefers-reduced-motion: reduce`. Colour is never the only signal (state
+  changes carry text, icons and ARIA).
+- Green appears only as a genuine system status (for example "Camera active");
+  it is never used decoratively.
 
 ## Known gaps carried over
 
@@ -294,7 +328,9 @@ Every backend variable (and its default) is documented in
 - No password reset, email verification, or account deletion yet.
 - API rate limiting is per process; a multi-worker deployment needs a shared
   store (Redis) for it to be global.
-- Interview history is capped at 200 per request and has no paging UI.
+- Interview history loads up to 200 interviews per request and its search,
+  filter and sort run client-side over that page — there is no server-side
+  search or paging UI yet.
 - Realtime/WebRTC voice — see the Phase 3 scope decision above.
 - No raw resume/JD file storage, no resume reuse across interviews.
 - Delivery/Webcam scoring thresholds are reasonable starting points, not

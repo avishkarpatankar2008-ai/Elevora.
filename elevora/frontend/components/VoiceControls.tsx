@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "./Alert";
 import { Button } from "./Button";
 
 export type RecordingState = "idle" | "recording" | "processing";
@@ -11,15 +12,21 @@ interface VoiceControlsProps {
   disabled?: boolean;
   /** Hard stop for a single answer, so one recording can't grow without bound. */
   maxSeconds?: number;
+  /** Increment to start a recording from outside (the interview-room dock). */
+  startSignal?: number;
+  /** Increment to stop the current recording from outside. */
+  stopSignal?: number;
+  /** Compact = dock/room layout without the helper copy. */
+  compact?: boolean;
 }
 
 /**
- * Microphone recording control for the interview room.
+ * Microphone control for the interview room.
  *
- * Browser notes (see README "Manual verification" for the untested-in-CI list):
- *   - MediaRecorder mime support varies: Chrome/Firefox prefer audio/webm;codecs=opus,
- *     Safari records audio/mp4. We ask the browser what it supports and fall back
- *     to its own default rather than forcing one.
+ * Browser notes:
+ *   - MediaRecorder mime support varies (Chrome/Firefox prefer
+ *     audio/webm;codecs=opus, Safari records audio/mp4); we ask the browser what
+ *     it supports and fall back to its own default rather than forcing one.
  *   - getUserMedia requires a secure context (HTTPS or localhost).
  *   - Tracks are always stopped on stop/unmount so the browser's recording
  *     indicator can't stay on after the candidate leaves the page.
@@ -42,19 +49,44 @@ function formatSeconds(total: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+/** Calm activity indicator: five bars breathing out of phase, not a neon blob. */
+function Waveform({ active }: { active: boolean }) {
+  return (
+    <span aria-hidden="true" className="flex h-5 items-end gap-[3px]">
+      {[0, 1, 2, 3, 4].map((index) => (
+        <span
+          key={index}
+          className={`w-[3px] rounded-full bg-gradient-to-t from-blue to-plum ${
+            active ? "animate-bar-breathe" : "opacity-40"
+          }`}
+          style={{
+            height: `${[40, 70, 100, 60, 35][index]}%`,
+            animationDelay: `${index * 120}ms`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function VoiceControls({
   onRecorded,
   onStateChange,
   disabled = false,
   maxSeconds = 300,
+  startSignal = 0,
+  stopSignal = 0,
+  compact = false,
 }: VoiceControlsProps) {
   const [state, setState] = useState<RecordingState>("idle");
+  const stateRef = useRef<RecordingState>("idle");
+  const startSignalRef = useRef(startSignal);
+  const stopSignalRef = useRef(stopSignal);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const stateRef = useRef<RecordingState>("idle");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function updateState(next: RecordingState) {
@@ -75,7 +107,6 @@ export function VoiceControls({
     }
   }
 
-  // Stop the microphone if the component goes away mid-recording.
   useEffect(() => {
     return () => {
       stopTimer();
@@ -85,6 +116,33 @@ export function VoiceControls({
       releaseStream();
     };
   }, []);
+
+  // The interview-room dock can trigger recording without owning the recorder.
+  // The callback is held in a ref so the effect never depends on a changing
+  // closure and no lint suppression is needed.
+  const startRecordingRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    startRecordingRef.current = () => {
+      void startRecording();
+    };
+  });
+
+  useEffect(() => {
+    if (startSignal === startSignalRef.current) return;
+    startSignalRef.current = startSignal;
+    if (stateRef.current === "idle" && !disabled) startRecordingRef.current();
+  }, [startSignal, disabled]);
+
+  const stopRecordingRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+  });
+
+  useEffect(() => {
+    if (stopSignal === stopSignalRef.current) return;
+    stopSignalRef.current = stopSignal;
+    if (stateRef.current === "recording") stopRecordingRef.current();
+  }, [stopSignal]);
 
   async function startRecording() {
     setError(null);
@@ -184,58 +242,58 @@ export function VoiceControls({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         {state === "idle" && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={startRecording}
-            disabled={disabled}
-            className="px-4 py-2.5"
-          >
-            🎤 Record answer
-          </Button>
+          <>
+            <Button type="button" variant="secondary" onClick={startRecording} disabled={disabled}>
+              <svg
+                aria-hidden="true"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              >
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+              </svg>
+              Record answer
+            </Button>
+            <Waveform active={false} />
+            {!compact && (
+              <span className="text-xs text-ink-mute">Speak, then stop the recording.</span>
+            )}
+          </>
         )}
 
         {state === "recording" && (
           <>
-            <Button
-              type="button"
-              variant="danger"
-              onClick={stopRecording}
-              className="px-4 py-2.5"
-              aria-live="off"
-            >
-              ● Stop recording
+            <Button type="button" variant="danger" onClick={stopRecording}>
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-danger" />
+              Stop recording
             </Button>
-            <span className="font-mono text-sm tabular-nums text-ink-600" role="status">
+            <Waveform active />
+            <span className="font-mono text-sm tabular-nums text-ink-soft" role="status">
               {formatSeconds(elapsed)} / {formatSeconds(maxSeconds)}
             </span>
-            <Button type="button" variant="ghost" onClick={cancelRecording} className="px-3 py-2">
+            <Button type="button" variant="ghost" size="sm" onClick={cancelRecording}>
               Cancel
             </Button>
           </>
         )}
 
         {state === "processing" && (
-          <span className="flex items-center gap-2 text-sm text-ink-600" role="status">
-            <span
-              aria-hidden="true"
-              className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-            />
+          <span className="flex items-center gap-3 text-sm text-ink-soft" role="status">
+            <Waveform active />
             Transcribing your answer…
           </span>
         )}
       </div>
-      <p className="text-xs text-ink-400">
-        Voice answers are transcribed by OpenAI. The audio itself isn&apos;t stored.
-      </p>
-      {error && (
-        <p className="text-sm text-danger" role="alert">
-          {error}
-        </p>
-      )}
+
+      {error && <Alert tone="error">{error}</Alert>}
     </div>
   );
 }

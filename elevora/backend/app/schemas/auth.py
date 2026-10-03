@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, StrictBool, field_validator
 
 
 class RegisterRequest(BaseModel):
@@ -25,6 +25,9 @@ class LoginRequest(BaseModel):
 class UserPreferencesUpdate(BaseModel):
     language: Optional[str] = Field(default=None, min_length=2, max_length=40)
     defaultDifficulty: Optional[Literal["easy", "medium", "hard"]] = None
+    # Strict: "yes" / "1" must not silently become True over the wire.
+    autoPlayQuestion: Optional[StrictBool] = None
+    cameraEnabledByDefault: Optional[StrictBool] = None
 
 
 class UserUpdateRequest(BaseModel):

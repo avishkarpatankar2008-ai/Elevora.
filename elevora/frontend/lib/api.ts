@@ -159,7 +159,14 @@ export const interviewsApi = {
   create: (data: InterviewConfig) =>
     request<Interview>("/interviews", { method: "POST", body: JSON.stringify(data) }),
 
-  list: () => request<Interview[]>("/interviews"),
+  /** Bounded listing: the API caps a page at 200 and defaults to 50. */
+  list: (options: { limit?: number; offset?: number } = {}, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.offset) params.set("offset", String(options.offset));
+    const query = params.toString();
+    return request<Interview[]>(`/interviews${query ? `?${query}` : ""}`, { signal });
+  },
 
   get: (id: string, signal?: AbortSignal) => request<Interview>(`/interviews/${id}`, { signal }),
 

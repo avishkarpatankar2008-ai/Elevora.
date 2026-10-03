@@ -1,4 +1,5 @@
 import { TextareaHTMLAttributes, forwardRef } from "react";
+import { FieldLabel, fieldShell } from "./Input";
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -12,28 +13,24 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     const describedBy = error ? `${textareaId}-error` : hint ? `${textareaId}-hint` : undefined;
     return (
       <div className="flex flex-col gap-1.5">
-        {label && (
-          <label htmlFor={textareaId} className="text-sm font-medium text-ink-900">
-            {label}
-          </label>
-        )}
+        {label && <FieldLabel htmlFor={textareaId}>{label}</FieldLabel>}
         <textarea
           ref={ref}
           id={textareaId}
-          className={`w-full rounded-md border bg-white/[0.04] px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-400 transition-colors focus:border-accent focus:outline-none disabled:opacity-60 ${
-            error ? "border-danger" : "border-surface-border"
+          className={`${fieldShell} resize-y leading-6 ${
+            error ? "border-danger/70" : "border-line"
           } ${className}`}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           {...props}
         />
         {hint && !error && (
-          <p id={`${textareaId}-hint`} className="text-xs text-ink-400">
+          <p id={`${textareaId}-hint`} className="text-xs text-ink-mute">
             {hint}
           </p>
         )}
         {error && (
-          <p id={`${textareaId}-error`} className="text-sm text-danger">
+          <p id={`${textareaId}-error`} className="text-xs text-danger">
             {error}
           </p>
         )}

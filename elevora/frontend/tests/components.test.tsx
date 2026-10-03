@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Alert } from "@/components/Alert";
 import { DimensionBar } from "@/components/DimensionBar";
+import { EmptyState } from "@/components/EmptyState";
+import { StepChoice } from "@/components/interview/StepChoice";
 
 describe("DimensionBar", () => {
   it("shows a measured score with its evidence", () => {
@@ -39,5 +41,40 @@ describe("Alert", () => {
 
     render(<Alert tone="info">Just so you know.</Alert>);
     expect(screen.getByRole("status")).toHaveTextContent("Just so you know.");
+  });
+});
+
+describe("StepChoice", () => {
+  it("exposes the wizard choice as a real radiogroup", () => {
+    // The setup wizard is the first thing a new user meets; if selection were
+    // conveyed only by colour, it would also be invisible to assistive tech.
+    render(
+      <StepChoice
+        legend="How difficult should the questions be?"
+        options={[
+          { value: "easy", label: "Easy" },
+          { value: "hard", label: "Hard" },
+        ]}
+        value="hard"
+        onChange={() => {}}
+      />
+    );
+    expect(screen.getByRole("radiogroup", { name: /how difficult/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Hard" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Easy" })).not.toBeChecked();
+  });
+});
+
+describe("EmptyState", () => {
+  it("explains what is missing and offers the next step", () => {
+    render(
+      <EmptyState
+        title="No interviews yet"
+        description="Create your first interview to start building history."
+        action={<a href="/interviews/new">Start interview</a>}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "No interviews yet" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start interview" })).toBeInTheDocument();
   });
 });
