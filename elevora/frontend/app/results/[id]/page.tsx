@@ -299,7 +299,7 @@ function ReportView({
           <Button variant="secondary" onClick={onRegenerate} isLoading={isRegenerating}>
             Regenerate report
           </Button>
-          <ButtonLink href={`/interviews/${interview.id} `} variant="ghost" className="w-full">
+          <ButtonLink href={`/interviews/${interview.id}`} variant="ghost" className="w-full">
               Review transcript
             </ButtonLink>
         </div>
@@ -421,7 +421,7 @@ function ReportView({
       )}
 
       <div className="flex flex-wrap gap-3 pb-4">
-        <ButtonLink href={`/interviews/${interview.id} `} variant="secondary">Review the transcript</ButtonLink>
+        <ButtonLink href={`/interviews/${interview.id}`} variant="secondary">Review the transcript</ButtonLink>
         <ButtonLink href="/dashboard" variant="ghost">Back to dashboard</ButtonLink>
       </div>
     </div>
@@ -553,7 +553,7 @@ function ResultsContent({ id }: { id: string }) {
             }
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <ButtonLink href={`/interviews/${id} `}>
+                <ButtonLink href={`/interviews/${id}`}>
                     {interview.status === "in_progress" ? "Continue interview" : "Go to the room"}
                   </ButtonLink>
                 <ButtonLink href="/interviews/new" variant="secondary">New interview</ButtonLink>

@@ -219,13 +219,13 @@ export function HistoryTable({
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex justify-end gap-2">
-                        <ButtonLink href={`/interviews/${interview.id} `} variant="ghost" size="sm">
+                        <ButtonLink href={`/interviews/${interview.id}`} variant="ghost" size="sm">
                             {interview.status === "completed" || interview.status === "abandoned"
                               ? "View"
                               : "Continue"}
                           </ButtonLink>
                         {interview.status === "completed" && (
-                          <ButtonLink href={`/results/${interview.id} `} variant="secondary" size="sm">
+                          <ButtonLink href={`/results/${interview.id}`} variant="secondary" size="sm">
                               Report
                             </ButtonLink>
                         )}
@@ -269,13 +269,13 @@ export function HistoryTable({
                     <span className="capitalize">{interview.difficulty}</span>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <ButtonLink href={`/interviews/${interview.id} className="flex-1 w-full" `} variant="secondary" size="sm">
+                    <ButtonLink href={`/interviews/${interview.id}`} variant="secondary" size="sm" className="w-full">
                         {interview.status === "completed" || interview.status === "abandoned"
                           ? "View"
                           : "Continue"}
                       </ButtonLink>
                     {interview.status === "completed" && (
-                      <ButtonLink href={`/results/${interview.id} className="flex-1 w-full" `} size="sm">
+                      <ButtonLink href={`/results/${interview.id}`} size="sm" className="w-full">
                           Report
                         </ButtonLink>
                     )}

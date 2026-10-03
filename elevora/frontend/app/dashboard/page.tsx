@@ -41,6 +41,14 @@ function Dashboard() {
   const minutes = useMemo(() => minutesPractised(interviews), [interviews]);
   const trend = useMemo(() => scoreTrend(interviews, reports), [interviews, reports]);
   const averages = useMemo(() => dimensionAverages(reportList), [reportList]);
+  /** The newest interview that actually has a report — never assume list order. */
+  const latestReport = useMemo(() => {
+    const withReports = interviews
+      .filter((interview) => reports[interview.id])
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return withReports.length > 0 ? reports[withReports[0].id] : null;
+  }, [interviews, reports]);
+  const latestScore = latestReport?.overallScore ?? null;
   const completed = useMemo(
     () => interviews.filter((interview) => interview.status === "completed"),
     [interviews]
@@ -74,7 +82,12 @@ function Dashboard() {
               Start new interview
             </ButtonLink>
           {inProgress.length > 0 && (
-            <ButtonLink href={`/interviews/${inProgress[0].id} className="sm:w-auto w-full" `} size="lg" variant="secondary">
+            <ButtonLink
+              href={`/interviews/${inProgress[0].id}`}
+              className="sm:w-auto w-full"
+              size="lg"
+              variant="secondary"
+            >
                 Resume session
               </ButtonLink>
           )}
@@ -101,32 +114,36 @@ function Dashboard() {
           ) : (
             <>
               <StatCard
-                label="Average score"
-                value={average !== null ? average : "—"}
+                label="Latest score"
+                value={latestScore !== null ? latestScore : "—"}
                 hint={
-                  average !== null
-                    ? `${scoredCount} scored interview${scoredCount === 1 ? "" : "s"} · best ${best}`
+                  latestScore !== null
+                    ? `From your most recent scored interview${best !== null ? ` · best ${best}` : ""}`
                     : "No scored interviews yet"
                 }
               />
               <StatCard
-                label="Completed"
+                label="Average score"
+                value={average !== null ? average : "—"}
+                hint={
+                  average !== null
+                    ? `Across ${scoredCount} scored interview${scoredCount === 1 ? "" : "s"}`
+                    : "Score one interview to start"
+                }
+              />
+              <StatCard
+                label="Interviews completed"
                 value={completed.length}
                 hint={
                   inProgress.length > 0
                     ? `${inProgress.length} session${inProgress.length === 1 ? "" : "s"} in progress`
-                    : "All sessions finished"
+                    : `${minutes} planned minutes across started sessions`
                 }
               />
               <StatCard
                 label="Practice streak"
                 value={`${streak}w`}
                 hint={streak === 0 ? "Complete one this week to start" : "Consecutive weeks with a session"}
-              />
-              <StatCard
-                label="Time on record"
-                value={`${minutes}m`}
-                hint="Planned minutes across started sessions"
               />
             </>
           )}
@@ -208,22 +225,24 @@ function Dashboard() {
       </section>
 
       {/* Recent highlight -------------------------------------------------- */}
-      {scoredCount > 0 && !isLoading && (
+      {latestReport && !isLoading && (
         <section className="mt-5">
           <Card className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-            <ScoreRing score={reportList[0].overallScore} size={132} sublabel="latest" />
+            <ScoreRing score={latestReport.overallScore} size={132} sublabel="latest" />
             <div className="flex-1 text-center sm:text-left">
               <h2 className="text-sm font-semibold text-ink">Most recent report</h2>
               <p className="mt-1 text-sm leading-6 text-ink-soft">
-                {reportList[0].strengths[0]
-                  ? `Standout: ${reportList[0].strengths[0]}`
+                {latestReport.strengths[0]
+                  ? `Standout: ${latestReport.strengths[0]}`
                   : "Open the report for the full evidence behind each dimension."}
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
-                <ButtonLink href={`/results/${reportList[0].interviewId} `} size="sm">Open report</ButtonLink>
+                <ButtonLink href={`/results/${latestReport.interviewId}`} size="sm">
+                  Open report
+                </ButtonLink>
                 <ButtonLink href="/interviews/new" size="sm" variant="secondary">
-                    Practise again
-                  </ButtonLink>
+                  Practise again
+                </ButtonLink>
               </div>
             </div>
           </Card>

@@ -453,7 +453,7 @@ function CompletedView({ interview }: { interview: Interview }) {
         whenever you&apos;re ready — it analyses the answers in this session and nothing else.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <ButtonLink href={`/results/${interview.id} `}>View performance report</ButtonLink>
+        <ButtonLink href={`/results/${interview.id}`}>View performance report</ButtonLink>
         <ButtonLink href="/interviews/new" variant="secondary">Practise again</ButtonLink>
       </div>
     </Card>
