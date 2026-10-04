@@ -3,6 +3,7 @@ import type {
   AudioAnswerResult,
   CandidateProfile,
   ExitInterviewResult,
+  HealthStatus,
   Interview,
   InterviewConfig,
   InterviewProfile,
@@ -254,4 +255,9 @@ export const interviewsApi = {
       method: "POST",
       body: JSON.stringify(metrics),
     }),
+};
+
+export const systemApi = {
+  /** Liveness + which AI mode the server is running in (demo/live/not_configured). */
+  health: (signal?: AbortSignal) => request<HealthStatus>("/health", { signal }),
 };

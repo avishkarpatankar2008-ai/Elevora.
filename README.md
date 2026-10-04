@@ -26,3 +26,10 @@ cd ../frontend
 npm install
 npm run dev                                        # http://localhost:3000, proxies /api/* to the API
 ```
+
+No AI provider keys? Outside production the API falls back to a built-in
+offline demo AI, so the whole flow (start → adaptive questions → answers →
+scored report) still works end-to-end; the UI says so with a demo-mode
+notice, and voice stays honestly unavailable. Set `OPENROUTER_API_KEY` (and
+`OPENAI_API_KEY` for voice) to switch to the real providers — see
+`elevora/README.md` → "AI keys and the offline demo mode".

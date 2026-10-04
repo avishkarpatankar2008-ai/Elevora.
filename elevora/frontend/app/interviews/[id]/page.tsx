@@ -7,6 +7,7 @@ import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button, ButtonLink } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { DemoModeNotice } from "@/components/DemoModeNotice";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/Skeleton";
 import { InterviewTimer } from "@/components/InterviewTimer";
@@ -589,6 +590,8 @@ function InterviewRoom({ id }: { id: string }) {
         </div>
         <Badge tone={STATUS_TONE[interview.status]}>{STATUS_COPY[interview.status]}</Badge>
       </div>
+
+      <DemoModeNotice className="mt-5" />
 
       {interview.status === "draft" && <DraftView interview={interview} onUpdated={setInterview} />}
 

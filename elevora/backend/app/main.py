@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
+from app.core.ai_deps import get_ai_client
 from app.core.logging import configure_logging, get_logger
 from app.database import (
     DatabaseUnavailableError,
@@ -159,11 +160,25 @@ app.include_router(interviews.router)
 app.include_router(interview_profiles.router)
 
 
+def _ai_mode() -> str:
+    """Which 'brain' is currently answering AI calls — surfaced so operators
+    and the UI can tell demo mode from a real provider (never silent)."""
+    from app.services.demo_ai import DemoAIClient
+
+    if isinstance(get_ai_client(), DemoAIClient):
+        return "demo"
+    return "live" if settings.openrouter_api_key else "not_configured"
+
+
 @app.get("/health", tags=["system"])
 async def health() -> dict:
     """Liveness probe. Always 200 while the process is serving; reports
     database reachability as information, not as a failure."""
-    return {"status": "ok", "database": "connected" if await ping_database() else "unreachable"}
+    return {
+        "status": "ok",
+        "database": "connected" if await ping_database() else "unreachable",
+        "aiMode": _ai_mode(),
+    }
 
 
 @app.get("/ready", tags=["system"])

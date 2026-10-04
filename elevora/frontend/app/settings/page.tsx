@@ -6,6 +6,7 @@ import { Badge } from "@/components/Badge";
 import { Button, ButtonLink } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { CameraPreview, type CameraStatus } from "@/components/CameraPreview";
+import { DemoModeNotice } from "@/components/DemoModeNotice";
 import { Input } from "@/components/Input";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Select } from "@/components/Select";
@@ -314,6 +315,7 @@ function SettingsContent() {
                 The interviewer is one adaptive engine. These control how it presents itself, not how
                 it scores — the rubric is identical for every candidate.
               </p>
+              <DemoModeNotice className="mt-4" />
               <div className="mt-5 space-y-3">
                 <Toggle
                   label="Speak each question aloud"

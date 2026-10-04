@@ -40,9 +40,23 @@ rest 404).
 
 The browser only ever talks to the Next.js origin: `/api/*` is proxied
 server-side to `BACKEND_ORIGIN` (default `http://127.0.0.1:8000`), so the session
-cookie stays first-party and there is no CORS to configure. Text generation
-needs `OPENROUTER_API_KEY`; voice needs `OPENAI_API_KEY`; without them the app
-runs and reports "AI isn't configured" instead of failing silently.
+cookie stays first-party and there is no CORS to configure.
+
+## AI keys and the offline demo mode
+
+Real AI text generation needs `OPENROUTER_API_KEY`; real voice needs
+`OPENAI_API_KEY`. **With no OpenRouter key, a development server now runs the
+full flow on a built-in offline demo AI** (`app/services/demo_ai.py`,
+controlled by `AI_DEMO_MODE=auto|on|off`): signup → configure → start →
+adaptive questions from curated topic banks → heuristic answer analysis →
+follow-ups → completion → scored report all work, and `/health` reports
+`aiMode: "demo"` while the UI shows a persistent "Demo mode" notice — it is
+never silent about which engine is answering. Voice is deliberately **not**
+faked: without `OPENAI_API_KEY`, transcription/TTS return an honest message
+pointing the candidate at typing. Production refuses to start with demo mode
+forced on, resolves `auto` to off, and behaves exactly as before (a missing
+key surfaces as "AI isn't configured"). Set the real keys anywhere the
+providers are reachable and they take over automatically.
 
 ## What's actually verified vs. what isn't
 
@@ -51,17 +65,18 @@ best-tested code in the project and, by a real margin, the least-tested.
 
 | Component | Verified how | Confidence |
 |---|---|---|
-| Backend logic (state machine, endpoint plumbing, orchestration) | Full pytest suite (**231 tests**) against an in-memory Mongo and a scripted fake AI client | High |
+| Backend logic (state machine, endpoint plumbing, orchestration) | Full pytest suite (**252 tests**) against an in-memory Mongo and a scripted fake AI client | High |
 | Concurrency / idempotency / retry safety | `tests/test_reliability.py` — duplicate submissions, stale claims, failed AI calls, concurrent report generation | High |
 | Security (authz isolation, rate limiting, upload validation, prompt-injection containment, error hygiene) | `tests/test_security.py` (31 tests) | High |
 | AI client failure handling (retries, timeouts, malformed output, missing keys) | `tests/test_ai_client.py` (21 tests, stubbed provider) | High for our behavior; the providers themselves are unverified |
+| **Offline demo AI** (`app/services/demo_ai.py`) | `tests/test_demo_ai.py` (29 tests): every method driven through the REAL prompt builders, plus full-flow integration tests (register → start → adaptive answers → follow-ups → completion → scored report; resume/JD extraction; honest voice refusal) through the actual HTTP endpoints with no provider keys. Also live-traced end-to-end through the production frontend build's proxy. | High that the flow works; the output is heuristic by design — it is a demo engine, not a model |
 | **PDF/DOCX text extraction** | Tested against real generated files | High |
 | **Scoring/weighting math** (Phase 6) | Pure unit tests, no AI/DB | High |
 | **Speech analytics** (`app/services/speech_analytics.py`) | **Tested against real generated audio** — ffmpeg is installed in this sandbox, so tests build actual audio clips with known silence gaps (via pydub's tone/silence generators), export them to real webm/wav bytes, and confirm the detected pauses/duration/WPM match. Caught and fixed a real bug (punctuation broke multi-word filler matching) before it shipped. | **High — same category as the PDF/DOCX parsing, genuinely not "unverified"** |
 | **Delivery/Webcam deterministic scoring** (`app/services/deterministic_scoring.py`) | Pure unit tests, no AI/DB — 16 tests check every threshold | **High** |
 | **End-to-end voice → Delivery score** | Integration test posts real generated audio through the actual `/answer/audio` endpoint and confirms a real (non-placeholder) Delivery score comes out the other end of a generated report | High |
 | Frontend | `tsc --noEmit`, `eslint`, full `next build` (10 routes, first-load JS ≤ 108 kB) — all clean, fonts self-hosted | High for compilation |
-| Frontend behavior (API client error mapping, webcam aggregation math, honest "Not available" rendering) | `npx vitest run` — 23 tests, jsdom + Testing Library | High for the tested units |
+| Frontend behavior (API client error mapping, webcam aggregation math, honest "Not available" rendering, demo-mode notice) | `npx vitest run` — 41 tests, jsdom + Testing Library | High for the tested units |
 | **The MediaPipe API calls themselves** (`lib/webcamAnalytics.ts`) | Checked against the *actual installed package's real TypeScript definitions* (not recalled from training data), and the aggregation arithmetic is unit-tested. The WASM runtime is now served from our own origin (copied out of the pinned package), so the previous CDN dependency is gone. | Medium for API correctness |
 | **Whether the webcam analytics actually work in a browser** | **Not verified at all — no camera, no browser.** Model loading from the CDN, `detectForVideo` against a live stream, and the head-orientation math (see the file's own extensive comments) have never run. | **The single least-verified piece in the entire project — more uncertain than VoiceControls or CameraPreview, which wrap simpler, longer-stable browser APIs** |
 | **OpenRouter text / OpenAI voice integration** | Not tested against the real APIs (no key, no network from this environment) | Unverified — `python -m scripts.smoke_test_ai` before trusting |
@@ -274,7 +289,7 @@ intended fallback.
 ```bash
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m pytest -q              # 233 passed (72s)
+.venv/bin/python -m pytest -q              # 252 passed, 10 skipped without ffmpeg (~75s)
 .venv/bin/python -m scripts.smoke_test_ai  # real provider calls; needs keys
 ```
 
@@ -291,7 +306,7 @@ cd frontend
 npm install
 npm run typecheck   # tsc --noEmit
 npm run lint        # next lint (app, components, lib, tests)
-npm test            # vitest run — 35 tests
+npm test            # vitest run — 41 tests
 npm run build       # prebuild copies the MediaPipe WASM runtime, then builds
 ```
 

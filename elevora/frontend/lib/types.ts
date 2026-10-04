@@ -259,6 +259,21 @@ export interface InterviewTurn {
   speechMetrics?: SpeechMetrics | null;
 }
 
+export interface HealthStatus {
+  status: string;
+  database: "connected" | "unreachable" | string;
+  /**
+   * Which "brain" is answering AI calls on the server:
+   * - "demo": no provider key is configured, so the offline demo AI runs the
+   *   flow (questions/analysis/scoring generated locally). Development only.
+   * - "live": a real provider (OpenRouter) is configured.
+   * - "not_configured": no key and demo mode is off — AI features fail with
+   *   an honest message instead.
+   * Optional so an older backend without the field still parses.
+   */
+  aiMode?: "demo" | "live" | "not_configured";
+}
+
 export const INTERVIEW_CATEGORIES: { value: InterviewCategory; label: string }[] = [
   { value: "campus-placement", label: "Campus placement" },
   { value: "software-engineer", label: "Software engineer" },

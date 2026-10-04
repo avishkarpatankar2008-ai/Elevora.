@@ -73,6 +73,20 @@ class Settings(BaseSettings):
     """Optional site URL sent to OpenRouter for attribution. Defaults to
     ``frontend_origin`` when empty."""
 
+    # -------------------------------------------------------------- demo mode
+    ai_demo_mode: Literal["auto", "on", "off"] = "auto"
+    """Controls the offline demo AI (services/demo_ai.py), which keeps the full
+    interview flow usable when no OPENROUTER_API_KEY is configured:
+
+    * ``auto`` (default): demo AI is used only outside production, and only
+      while no OpenRouter key is set. Add a key and the real provider takes
+      over with no other change.
+    * ``on``: force demo AI even if a key is set (development/testing).
+      Refused at startup when ENV=production.
+    * ``off``: never use demo AI; a missing key surfaces as the honest
+      "AI isn't configured" error, as before.
+    """
+
     # ---------------------------------------------------------- VOICE AI (OpenAI)
     openai_api_key: str = ""
     openai_transcribe_model: str = "gpt-4o-mini-transcribe"
@@ -95,6 +109,17 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.env == "production"
+
+    @property
+    def demo_ai_enabled(self) -> bool:
+        """Whether the offline demo AI may activate (see ``ai_demo_mode``).
+        Production safety is validated at startup, so 'on' can never reach
+        here in a production process."""
+        if self.ai_demo_mode == "on":
+            return True
+        if self.ai_demo_mode == "off":
+            return False
+        return self.env != "production"
 
     @property
     def cookie_secure_effective(self) -> bool:
@@ -153,6 +178,12 @@ class Settings(BaseSettings):
         if self.frontend_origin.startswith("http://localhost"):
             problems.append(
                 "FRONTEND_ORIGIN still points at localhost. Set it to the deployed frontend origin."
+            )
+
+        if self.ai_demo_mode == "on":
+            problems.append(
+                "AI_DEMO_MODE=on forces the offline demo AI, which is development-only. "
+                "Use AI_DEMO_MODE=auto (default) or off in production."
             )
 
         if problems:

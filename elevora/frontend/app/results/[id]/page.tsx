@@ -6,12 +6,14 @@ import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button, ButtonLink } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { DemoModeNotice } from "@/components/DemoModeNotice";
 import { DimensionBar, type DimensionKind } from "@/components/DimensionBar";
 import { EmptyState } from "@/components/EmptyState";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ScoreRing } from "@/components/ScoreRing";
 import { Skeleton, SkeletonCard } from "@/components/Skeleton";
 import { ApiError, interviewsApi } from "@/lib/api";
+import { useAiMode } from "@/lib/aiMode";
 import {
   DIMENSION_LABELS,
   DIMENSION_ORDER,
@@ -251,6 +253,7 @@ function ReportView({
   isRegenerating: boolean;
   regenerateError: string | null;
 }) {
+  const aiMode = useAiMode();
   const aiDimensions = DIMENSION_ORDER.filter((key) => DIMENSION_KIND[key] === "ai");
   const measuredDimensions = DIMENSION_ORDER.filter((key) => DIMENSION_KIND[key] === "measured");
   const availableCount = DIMENSION_ORDER.filter(
@@ -408,14 +411,17 @@ function ReportView({
             <h2 className="text-sm font-semibold text-ink">
               A stronger version of one of your answers
             </h2>
-            <Badge tone="plum">AI-written example</Badge>
+            <Badge tone="plum">
+              {aiMode === "demo" ? "Demo-mode rewrite" : "AI-written example"}
+            </Badge>
           </div>
           <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-soft">
             {report.improvedAnswer}
           </p>
           <p className="mt-3 text-xs leading-5 text-ink-mute">
-            Written by the AI from your own transcript — a model of how to structure an answer, not a
-            script to memorise.
+            {aiMode === "demo"
+              ? "Assembled locally from your own transcript by the offline demo engine — a model of how to structure an answer, not a script to memorise."
+              : "Written by the AI from your own transcript — a model of how to structure an answer, not a script to memorise."}
           </p>
         </Card>
       )}
@@ -531,6 +537,8 @@ function ResultsContent({ id }: { id: string }) {
         Performance report
       </h1>
       <p className="mt-1 text-sm text-ink-soft">{heading}</p>
+
+      <DemoModeNotice className="mt-5" />
 
       {isLoading && <ReportSkeleton />}
 
