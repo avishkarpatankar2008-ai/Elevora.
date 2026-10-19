@@ -1,5 +1,6 @@
 # ELEVORA
 
+<<<<<<< HEAD
 Adaptive AI interview practice platform: auth, dashboard, interview
 configuration, a text/voice AI interviewer, an interview room with on-device
 webcam analytics, resume/JD grounding, reusable **Interview Profiles**, and
@@ -609,3 +610,31 @@ in the sandbox this pass was written in.
   error never reaches the client. Logs are server-side only.
 - Webcam frames never leave the browser — the API has no endpoint that accepts
   image or video data, only the three aggregate rates.
+=======
+Adaptive AI interview practice platform — practice the interview you actually have:
+voice or text answers, adaptive follow-up questions, resume/job-description grounding,
+and evidence-linked performance reports.
+
+The application lives in [`elevora/`](./elevora):
+
+| Path | What it is |
+|---|---|
+| `elevora/backend/` | FastAPI + MongoDB API (auth, interview engine, AI services, speech analytics, scoring) |
+| `elevora/frontend/` | Next.js 14 (App Router) client |
+| `elevora/README.md` | Setup, architecture, verification status, deployment |
+| `elevora/PRODUCTION_READINESS_REPORT.md` | The engineering report for the production-readiness pass |
+
+Quick start:
+
+```bash
+# API (MongoDB required unless you use the documented development memory mode)
+cd elevora/backend
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --reload            # or MONGO_URI=memory:// ... for a throwaway store
+
+# Web client
+cd ../frontend
+npm install
+npm run dev                                        # http://localhost:3000, proxies /api/* to the API
+```
+>>>>>>> ce83036ce2e4dac593c418de2151ed08d41b3038
