@@ -1,81 +1,114 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
-import { Alert } from "@/components/Alert";
-import { AuthShell } from "@/components/AuthShell";
-import { Button } from "@/components/Button";
-import { Input } from "@/components/Input";
-import { ApiError } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function LoginPage() {
-  const { login, user, isLoading } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Someone already signed in shouldn't sit on the login screen.
-  useEffect(() => {
-    if (!isLoading && user) router.replace("/dashboard");
-  }, [isLoading, user, router]);
-
-  async function handleSubmit(e: FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true);
-    try {
-      await login(email.trim(), password);
-      router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
-      setIsSubmitting(false);
+
+    if (!email || !password) {
+      setError('Please provide both email and password.');
+      return;
     }
-  }
+
+    setLoading(true);
+    try {
+      await api.login({ email, password });
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid credentials or connection issue.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <AuthShell
-      title="Welcome back"
-      subtitle="Pick up where you left off."
-      footer={
-        <>
-          New to ELEVORA?{" "}
-          <Link href="/signup" className="font-medium text-blue hover:text-blue-soft">
-            Create an account
+    <div className="min-h-screen bg-[#09090b] text-[#fafafa] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <Link href="/" className="inline-flex items-center gap-2 mb-6 group">
+          <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center font-bold text-xl text-white shadow-lg shadow-purple-600/30">
+            E
+          </div>
+          <span className="font-display text-2xl font-bold tracking-tight">ELEVORA</span>
+        </Link>
+        <h2 className="font-display text-3xl font-bold tracking-tight">Sign in to your account</h2>
+        <p className="mt-2 text-sm text-[#a1a1aa]">
+          Or{' '}
+          <Link href="/signup" className="text-purple-400 hover:text-purple-300 font-medium">
+            create a new account
           </Link>
-        </>
-      }
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
-        <Input
-          label="Email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        </p>
+      </div>
 
-        {error && <Alert tone="error">{error}</Alert>}
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-[#121215] py-8 px-6 sm:px-10 border border-[#27272a] rounded-2xl shadow-xl">
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
-        <Button type="submit" isLoading={isSubmitting} className="w-full">
-          Log in
-        </Button>
-      </form>
-    </AuthShell>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div>
+              <label className="block text-sm font-medium text-[#fafafa] mb-2">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full px-4 py-3 rounded-xl bg-[#09090b] border border-[#27272a] text-[#fafafa] placeholder-[#71717a] focus:outline-none focus:border-purple-500 transition-colors text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#fafafa] mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-xl bg-[#09090b] border border-[#27272a] text-[#fafafa] placeholder-[#71717a] focus:outline-none focus:border-purple-500 transition-colors text-sm"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-3 px-4 rounded-xl transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group text-sm"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Authenticating...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
