@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1125" width="900" height="1125">
+  <defs>
+    <radialGradient id="bg-grad-again-profiles" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1f1d26" />
+      <stop offset="100%" stop-color="#0d0c11" />
+    </radialGradient>
+    <linearGradient id="accent-grad-again-profiles" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6c3cff" />
+      <stop offset="100%" stop-color="#4deeea" />
+    </linearGradient>
+    <filter id="glow-again-profiles" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="24" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="url(#bg-grad-again-profiles)" />
+
+  <!-- Grid mesh pattern -->
+  <g stroke="rgba(239, 238, 244, 0.04)" stroke-width="1">
+    <line x1="0" y1="0" x2="900" y2="0" /><line x1="0" y1="93.75" x2="900" y2="93.75" /><line x1="0" y1="187.5" x2="900" y2="187.5" /><line x1="0" y1="281.25" x2="900" y2="281.25" /><line x1="0" y1="375" x2="900" y2="375" /><line x1="0" y1="468.75" x2="900" y2="468.75" /><line x1="0" y1="562.5" x2="900" y2="562.5" /><line x1="0" y1="656.25" x2="900" y2="656.25" /><line x1="0" y1="750" x2="900" y2="750" /><line x1="0" y1="843.75" x2="900" y2="843.75" /><line x1="0" y1="937.5" x2="900" y2="937.5" /><line x1="0" y1="1031.25" x2="900" y2="1031.25" />
+    <line x1="0" y1="0" x2="0" y2="1125" /><line x1="56.25" y1="0" x2="56.25" y2="1125" /><line x1="112.5" y1="0" x2="112.5" y2="1125" /><line x1="168.75" y1="0" x2="168.75" y2="1125" /><line x1="225" y1="0" x2="225" y2="1125" /><line x1="281.25" y1="0" x2="281.25" y2="1125" /><line x1="337.5" y1="0" x2="337.5" y2="1125" /><line x1="393.75" y1="0" x2="393.75" y2="1125" /><line x1="450" y1="0" x2="450" y2="1125" /><line x1="506.25" y1="0" x2="506.25" y2="1125" /><line x1="562.5" y1="0" x2="562.5" y2="1125" /><line x1="618.75" y1="0" x2="618.75" y2="1125" /><line x1="675" y1="0" x2="675" y2="1125" /><line x1="731.25" y1="0" x2="731.25" y2="1125" /><line x1="787.5" y1="0" x2="787.5" y2="1125" /><line x1="843.75" y1="0" x2="843.75" y2="1125" />
+  </g>
+
+  <!-- Glowing Orbs -->
+  <circle cx="630" cy="393.75" r="252.00000000000003" fill="url(#accent-grad-again-profiles)" opacity="0.18" filter="url(#glow-again-profiles)" />
+  <circle cx="270" cy="731.25" r="198" fill="#6c3cff" opacity="0.22" filter="url(#glow-again-profiles)" />
+
+  <!-- Abstract Geometry representing AI / Interview -->
+  <g transform="translate(450, 506.25)">
+    <!-- Soundwave / Speech node visualization -->
+    <path d="M -225 0 Q -112.5 -40, 0 0 T 225 0" fill="none" stroke="url(#accent-grad-again-profiles)" stroke-width="3" stroke-linecap="round" opacity="0.85" />
+    <path d="M -180 20 Q -90 -20, 0 20 T 180 20" fill="none" stroke="#6c3cff" stroke-width="2" stroke-linecap="round" opacity="0.6" />
+    <circle cx="0" cy="0" r="8" fill="#efeef4" filter="url(#glow-again-profiles)" />
+    <circle cx="-112.5" cy="-20" r="5" fill="#6c3cff" />
+    <circle cx="112.5" cy="-20" r="5" fill="#4deeea" />
+  </g>
+
+  <!-- Typography / Info Badge -->
+  <g transform="translate(36, 1065)">
+    <rect x="-8" y="-22" width="137" height="30" rx="15" fill="rgba(108, 60, 255, 0.25)" stroke="#6c3cff" stroke-width="1" />
+    <text x="2" y="-2" fill="#efeef4" font-family="'Onest', sans-serif" font-size="13" font-weight="600" letter-spacing="0.05em">CONFIGURATION</text>
+    <text x="0" y="32" fill="#ffffff" font-family="'Gabarito', sans-serif" font-size="24" font-weight="700">Custom Profiles</text>
+  </g>
+</svg>
