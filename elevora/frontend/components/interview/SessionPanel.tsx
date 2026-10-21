@@ -27,8 +27,13 @@ function CameraNote({
   if (!cameraEnabled) {
     return (
       <>
+<<<<<<< HEAD
         Optional camera analysis is off. No camera frames are accessed unless you first give consent
         below and then turn the camera on. Camera-free interviews remain fully supported.
+=======
+        The camera is off. Webcam scoring needs it running for part of the session — with it off,
+        your report says &ldquo;Not available&rdquo; for that dimension rather than guessing.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
       </>
     );
   }
@@ -75,10 +80,13 @@ export function SessionPanel({
   questionNumberShown,
   cameraEnabled,
   onToggleCamera,
+<<<<<<< HEAD
   postureConsent,
   onPostureConsentChange,
   analyticsSummary,
   onCameraStatusChange,
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   cameraStatus,
   onFrameSample,
   analyticsStatus,
@@ -91,10 +99,13 @@ export function SessionPanel({
   questionNumberShown: number;
   cameraEnabled: boolean;
   onToggleCamera: () => void;
+<<<<<<< HEAD
   postureConsent: boolean;
   onPostureConsentChange: (consented: boolean) => void;
   analyticsSummary: string | null;
   onCameraStatusChange: (status: CameraStatus) => void;
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   cameraStatus: CameraStatus;
   onFrameSample: (video: HTMLVideoElement) => void;
   analyticsStatus: TrackerStatus;
@@ -108,6 +119,7 @@ export function SessionPanel({
   return (
     <div className="flex flex-col gap-4">
       <section className="glass overflow-hidden rounded-2xl">
+<<<<<<< HEAD
         <div className="border-b border-line px-4 py-3.5">
           <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-5 text-ink-soft">
             <input
@@ -124,12 +136,17 @@ export function SessionPanel({
             </span>
           </label>
         </div>
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         {cameraEnabled ? (
           <>
             <CameraPreview
               enabled={cameraEnabled}
               onFrameSample={onFrameSample}
+<<<<<<< HEAD
               onStatusChange={onCameraStatusChange}
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               className="rounded-none border-0"
             />
             <div className="flex items-center justify-between gap-3 border-t border-line px-3.5 py-2.5">
@@ -137,7 +154,10 @@ export function SessionPanel({
               <button
                 type="button"
                 onClick={onToggleCamera}
+<<<<<<< HEAD
                 disabled={!postureConsent}
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
                 aria-pressed={true}
                 className="rounded-lg border border-line px-2.5 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink"
               >
@@ -154,7 +174,10 @@ export function SessionPanel({
             <button
               type="button"
               onClick={onToggleCamera}
+<<<<<<< HEAD
               disabled={!postureConsent}
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               aria-pressed={false}
               className="rounded-lg border border-line px-2.5 py-1 text-[11px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink"
             >
@@ -171,12 +194,15 @@ export function SessionPanel({
             analyticsSamples={analyticsSamples}
           />
         </p>
+<<<<<<< HEAD
         {analyticsSummary && postureConsent && cameraEnabled && (
           <div className="border-t border-line px-4 py-3 text-[11px] leading-5 text-ink-mute" aria-live="polite">
             <span className="font-semibold text-ink-soft">On-device session summary: </span>
             {analyticsSummary}
           </div>
         )}
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
       </section>
 
       <section className="rounded-2xl border border-line bg-surface/70 p-4">
@@ -240,7 +266,12 @@ export function SessionPanel({
       </section>
 
       <p className="px-1 text-[11px] leading-5 text-ink-mute">
+<<<<<<< HEAD
         Raw video and frame-level landmarks are never sent to or stored by ELEVORA. If you consent, only bounded aggregate rates may be submitted. Camera-free interviews work normally.
+=======
+        Frames never leave your browser; only the aggregate rates above are stored with this
+        interview. Nothing here is simulated.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
       </p>
     </div>
   );

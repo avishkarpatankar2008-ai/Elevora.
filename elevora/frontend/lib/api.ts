@@ -12,7 +12,11 @@ import type {
   JobProfile,
   StartInterviewResult,
   User,
+<<<<<<< HEAD
   UserPreferencesUpdate,
+=======
+  UserPreferences,
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   WebcamMetrics,
 } from "./types";
 
@@ -131,7 +135,11 @@ export const authApi = {
 
   me: () => request<User>("/auth/me"),
 
+<<<<<<< HEAD
   updateMe: (data: { name?: string; preferences?: UserPreferencesUpdate }) =>
+=======
+  updateMe: (data: { name?: string; preferences?: Partial<UserPreferences> }) =>
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     request<User>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
 };
 

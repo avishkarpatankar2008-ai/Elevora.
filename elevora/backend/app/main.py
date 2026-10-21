@@ -15,7 +15,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
 from app.core.logging import configure_logging, get_logger
+<<<<<<< HEAD
 from app.core.ai_deps import get_ai_client
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 from app.database import (
     DatabaseUnavailableError,
     close_mongo_connection,
@@ -57,6 +60,7 @@ async def lifespan(app: FastAPI):
     )
     yield
 
+<<<<<<< HEAD
     try:
         ai_client = get_ai_client()
         close_ai_client = getattr(ai_client, "aclose", None)
@@ -64,6 +68,8 @@ async def lifespan(app: FastAPI):
             await close_ai_client()
     except Exception as exc:  # noqa: BLE001 - shutdown must still close Mongo
         logger.warning("AI client cleanup failed during shutdown: %s", type(exc).__name__)
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     close_mongo_connection()
     logger.info("ELEVORA API shut down.")
 
@@ -109,7 +115,11 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault(
+<<<<<<< HEAD
         "Permissions-Policy", "camera=(self), microphone=(self), geolocation=()"
+=======
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     )
     if request.url.path.startswith(("/auth", "/interviews", "/interview-profiles")):
         response.headers.setdefault("Cache-Control", "no-store")

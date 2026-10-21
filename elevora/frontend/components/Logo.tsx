@@ -31,12 +31,17 @@ export function Logo({
         </svg>
       </span>
       {showWordmark && (
+<<<<<<< HEAD
         <span className="text-[18px] font-extrabold tracking-[-0.03em] text-ink">
           ELEVORA
           <span
             className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#6c3cff]"
             aria-hidden="true"
           />
+=======
+        <span className="text-[17px] font-bold tracking-[-0.02em] text-ink">
+          ELEVORA
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         </span>
       )}
     </span>

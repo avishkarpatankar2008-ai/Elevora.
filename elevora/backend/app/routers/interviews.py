@@ -19,7 +19,11 @@ from fastapi import (
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
+<<<<<<< HEAD
 from app.core.ai_deps import get_user_ai_client
+=======
+from app.core.ai_deps import get_ai_client
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 from app.core.deps import get_current_user
 from app.core.logging import get_logger
 from app.database import get_database
@@ -220,7 +224,11 @@ async def start_interview_endpoint(
     interview_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> StartInterviewResponse:
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
     try:
@@ -237,7 +245,11 @@ async def answer_endpoint(
     payload: AnswerRequest,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> AnswerResponse:
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
     try:
@@ -283,7 +295,11 @@ async def get_question_audio(
     interview_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> Response:
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
     pending = doc.get("pendingQuestion")
@@ -294,7 +310,11 @@ async def get_question_audio(
 
     question_text = pending["question"]
     cache_key = hashlib.sha256(
+<<<<<<< HEAD
         f"browser-web-speech|{question_text}".encode("utf-8")
+=======
+        f"{settings.openai_tts_model}|{settings.openai_tts_voice}|{question_text}".encode("utf-8")
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     ).hexdigest()
 
     audio_bytes = question_audio_cache.get(cache_key)
@@ -319,7 +339,11 @@ async def answer_audio_endpoint(
     question: Optional[str] = Form(default=None),
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> AudioAnswerResponse:
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
 
@@ -398,7 +422,11 @@ async def upload_resume(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> ResumeUploadResponse:
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
 
@@ -442,7 +470,11 @@ async def upload_job_description(
     text: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> JobDescriptionUploadResponse:
     """Accepts either a pasted text field or an uploaded PDF/DOCX file — job
     descriptions are more often copy-pasted from a posting than uploaded as a
@@ -510,11 +542,14 @@ async def submit_webcam_metrics(
     """Client-computed aggregate signals only — see WebcamMetrics' docstring.
     No raw video ever reaches this endpoint or this backend at all."""
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
+<<<<<<< HEAD
     if not metrics.consentGiven:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Explicit per-session consent is required before webcam metrics can be saved.",
         )
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     if doc["status"] not in ("in_progress", "completed"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -534,7 +569,11 @@ async def generate_report_endpoint(
     interview_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
+<<<<<<< HEAD
     ai_client: AIClient = Depends(get_user_ai_client),
+=======
+    ai_client: AIClient = Depends(get_ai_client),
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ) -> InterviewReport:
     doc = await _get_owned_interview_or_404(db, interview_id, current_user)
     try:

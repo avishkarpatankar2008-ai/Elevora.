@@ -28,9 +28,12 @@ class UserPreferencesUpdate(BaseModel):
     # Strict: "yes" / "1" must not silently become True over the wire.
     autoPlayQuestion: Optional[StrictBool] = None
     cameraEnabledByDefault: Optional[StrictBool] = None
+<<<<<<< HEAD
     # Switching to "external" is only accepted together with externalAiConsent=true.
     aiProcessing: Optional[Literal["private", "external"]] = None
     externalAiConsent: Optional[StrictBool] = None
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 
 class UserUpdateRequest(BaseModel):

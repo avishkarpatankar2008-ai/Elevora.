@@ -2,10 +2,17 @@
 
 Providers
 ---------
+<<<<<<< HEAD
 * Text routes over an explicit six-model, free-tier-only allowlist: Groq first,
   Gemini second/third, then three explicit OpenRouter ``:free`` endpoints.
 * Voice transcription uses Groq's documented free-tier Whisper endpoint.
   Question playback is browser-side Web Speech; no paid TTS call is made.
+=======
+* Text (question generation, answer analysis, resume/JD extraction, final
+  evaluation) -> OpenRouter, which speaks the OpenAI-compatible Chat
+  Completions API.
+* Voice (speech-to-text, text-to-speech) -> OpenAI.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 Reliability rules this module enforces
 --------------------------------------
@@ -13,6 +20,7 @@ Reliability rules this module enforces
    an interview indefinitely.
 2. Transient failures (timeouts, connection errors, 429s, 5xx) are retried a
    small, fixed number of times with linear backoff.
+<<<<<<< HEAD
 3. JSON is requested through an explicit schema in the prompt, then parsed and
    validated locally; malformed or out-of-schema output advances to the next model.
 4. Provider quota exhaustion is tracked per model with a cooldown; the router
@@ -33,6 +41,21 @@ from collections import OrderedDict
 from typing import Any, Literal, Protocol
 
 import httpx
+=======
+3. Providers that reject structured-output parameters get one automatic retry
+   without them — the JSON schema is already described in the prompt, so this
+   degrades reliability slightly instead of failing outright.
+4. Every failure surfaces as :class:`AIServiceError` carrying a
+   ``user_message`` that is safe to show a candidate. Provider payloads,
+   stack traces and raw model output are logged server-side only.
+5. AI output is validated with Pydantic before it is trusted. Malformed or
+   missing fields are an error, never a silently coerced guess.
+"""
+
+import asyncio
+import json
+from typing import Literal, Protocol
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 import openai
 from openai import AsyncOpenAI
@@ -277,6 +300,7 @@ _RETRYABLE_OPENAI_ERRORS = (
 
 
 class OpenAIClient:
+<<<<<<< HEAD
     """Free-only provider router implementing the existing ``AIClient`` API.
 
     The historical class name remains for compatibility with dependency wiring.
@@ -329,10 +353,41 @@ class OpenAIClient:
             base_url="https://openrouter.ai/api/v1",
             max_retries=0,
             default_headers=headers,
+=======
+    """ELEVORA's AI provider: OpenRouter for text, OpenAI for voice."""
+
+    def __init__(self) -> None:
+        self._openrouter_client: AsyncOpenAI | None = None
+        self._openai_client: AsyncOpenAI | None = None
+
+    # ------------------------------------------------------------------ clients
+
+    @property
+    def openrouter_client(self) -> AsyncOpenAI:
+        """Lazy OpenRouter client (OpenAI-compatible SDK, different base URL)."""
+        if self._openrouter_client is not None:
+            return self._openrouter_client
+
+        settings = get_settings()
+        if not settings.openrouter_api_key:
+            raise AIServiceError(
+                "OPENROUTER_API_KEY is not set.",
+                kind="not_configured",
+            )
+        self._openrouter_client = AsyncOpenAI(
+            api_key=settings.openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",
+            max_retries=0,  # retries are handled explicitly below
+            default_headers={
+                "HTTP-Referer": settings.openrouter_attribution_referer,
+                "X-Title": "ELEVORA",
+            },
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         )
         return self._openrouter_client
 
     @property
+<<<<<<< HEAD
     def groq_client(self) -> AsyncOpenAI:
         if self._groq_client is not None:
             return self._groq_client
@@ -365,6 +420,24 @@ class OpenAIClient:
                 await client.close()
         if self._gemini_http_client is not None:
             await self._gemini_http_client.aclose()
+=======
+    def openai_client(self) -> AsyncOpenAI:
+        """Lazy OpenAI client, used only for speech-to-text and text-to-speech."""
+        if self._openai_client is not None:
+            return self._openai_client
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            raise AIServiceError(
+                "OPENAI_API_KEY is not set (required for voice transcription and TTS).",
+                kind="not_configured",
+            )
+        self._openai_client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            max_retries=0,
+        )
+        return self._openai_client
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     # ------------------------------------------------------------- json helpers
 
@@ -410,7 +483,11 @@ class OpenAIClient:
             except json.JSONDecodeError:
                 pass
 
+<<<<<<< HEAD
         logger.warning("%s: invalid JSON from provider (response_length=%d)", schema_name, len(raw))
+=======
+        logger.warning("%s: invalid JSON from provider: %s", schema_name, raw[:500])
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         raise AIServiceError(
             f"{schema_name}: provider returned invalid JSON.",
             kind="invalid_response",
@@ -463,6 +540,7 @@ class OpenAIClient:
             f"{schema_text}"
         )
 
+<<<<<<< HEAD
     # --------------------------------------------------------- free-only routing
 
     @staticmethod
@@ -694,6 +772,9 @@ class OpenAIClient:
                 "improvedAnswer": None,
             }
         raise AIServiceError(f"No deterministic fallback is defined for {schema_name}.", kind="unavailable")
+=======
+    # ---------------------------------------------------------- openrouter call
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     async def _chat_json(
         self,
@@ -703,6 +784,7 @@ class OpenAIClient:
         schema: dict,
         schema_name: str,
     ) -> dict:
+<<<<<<< HEAD
         """Run sequential free-only failover, validate, and cache the result."""
         settings = get_settings()
         chain = self._configured_chain()
@@ -715,11 +797,17 @@ class OpenAIClient:
         cached = await self._cache_get(cache_key)
         if cached is not None:
             return cached
+=======
+        """One OpenRouter chat-completions call returning validated-shape JSON."""
+        settings = get_settings()
+        client = self.openrouter_client  # raises not_configured when unset
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
         messages = [
             {"role": "system", "content": system + self._json_instruction(schema, schema_name)},
             {"role": "user", "content": user},
         ]
+<<<<<<< HEAD
         last_error: AIServiceError | None = None
         async with self._request_semaphore:
             # Check again after waiting for a slot.
@@ -840,10 +928,106 @@ class OpenAIClient:
         validated_fallback = self._validate_data(fallback, schema_name)
         logger.warning("AI route exhausted all free models; deterministic fallback schema=%s last_error=%s", schema_name, getattr(last_error, "kind", "unknown"))
         return validated_fallback
+=======
+
+        attempts = max(1, settings.openrouter_max_attempts)
+        use_response_format = True
+        last_error: AIServiceError | None = None
+
+        for attempt in range(1, attempts + 1):
+            request_kwargs: dict = {
+                "model": settings.openrouter_model,
+                "messages": messages,
+                "temperature": 0.1,
+                "max_tokens": 2000,
+                "timeout": settings.openrouter_timeout_seconds,
+            }
+            if use_response_format:
+                request_kwargs["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": schema_name, "strict": True, "schema": schema},
+                }
+                # OpenRouter-specific knobs; older SDKs pass them through extra_body.
+                request_kwargs["extra_body"] = {
+                    "provider": {"require_parameters": True},
+                    "reasoning": {"exclude": True},
+                }
+
+            try:
+                response = await client.chat.completions.create(**request_kwargs)
+                return self._response_to_json(response, schema=schema, schema_name=schema_name)
+            except openai.BadRequestError as exc:
+                if use_response_format:
+                    # Provider doesn't support json_schema/response_format.
+                    # Retry once without it — the instructions are still in the
+                    # system prompt, and local validation still runs.
+                    logger.info(
+                        "%s: provider rejected structured output, retrying without it (%s)",
+                        schema_name,
+                        exc,
+                    )
+                    use_response_format = False
+                    last_error = AIServiceError(
+                        f"{schema_name}: provider rejected structured output.", kind="unavailable"
+                    )
+                    continue
+                logger.warning("%s: bad request to provider: %s", schema_name, exc)
+                raise AIServiceError(
+                    f"{schema_name}: provider rejected the request.",
+                    kind="unavailable",
+                ) from exc
+            except openai.AuthenticationError as exc:
+                logger.error("%s: provider authentication failed: %s", schema_name, exc)
+                raise AIServiceError(
+                    f"{schema_name}: provider authentication failed.",
+                    kind="not_configured",
+                    user_message=(
+                        "The AI interviewer's API key was rejected by the provider. "
+                        "An administrator needs to check the server configuration."
+                    ),
+                ) from exc
+            except openai.NotFoundError as exc:
+                logger.error(
+                    "%s: model %r not found at provider: %s",
+                    schema_name,
+                    settings.openrouter_model,
+                    exc,
+                )
+                raise AIServiceError(
+                    f"{schema_name}: model {settings.openrouter_model!r} is unavailable.",
+                    kind="not_configured",
+                    user_message=(
+                        "The configured AI model isn't available. "
+                        "An administrator needs to check the server configuration."
+                    ),
+                ) from exc
+            except _RETRYABLE_OPENAI_ERRORS as exc:
+                last_error = self._classify_retryable(schema_name, exc)
+                logger.warning(
+                    "%s: attempt %d/%d failed (%s)", schema_name, attempt, attempts, exc
+                )
+            except openai.OpenAIError as exc:
+                logger.error("%s: provider error: %s", schema_name, exc)
+                raise AIServiceError(
+                    f"{schema_name}: provider error ({type(exc).__name__}).",
+                    kind="unavailable",
+                ) from exc
+            except asyncio.TimeoutError as exc:
+                last_error = AIServiceError(f"{schema_name}: provider timed out.", kind="timeout")
+                logger.warning("%s: attempt %d/%d timed out", schema_name, attempt, attempts)
+                del exc
+
+            if attempt < attempts and last_error is not None:
+                await asyncio.sleep(min(2.0 * attempt, 4.0))
+
+        assert last_error is not None  # loop always sets it before falling through
+        raise last_error
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     @staticmethod
     def _classify_retryable(schema_name: str, exc: Exception) -> AIServiceError:
         if isinstance(exc, openai.RateLimitError):
+<<<<<<< HEAD
             return AIServiceError(f"{schema_name}: provider rate limit reached.", kind="rate_limited")
         if isinstance(exc, (openai.APITimeoutError, asyncio.TimeoutError, httpx.TimeoutException)):
             return AIServiceError(f"{schema_name}: provider timed out.", kind="timeout")
@@ -860,15 +1044,68 @@ class OpenAIClient:
         if not raw:
             finish_reason = getattr(choice, "finish_reason", None)
             raise AIServiceError(f"{schema_name}: provider returned no text output (finish_reason={finish_reason!r}).", kind="invalid_response")
+=======
+            return AIServiceError(
+                f"{schema_name}: provider rate limit reached ({exc}).", kind="rate_limited"
+            )
+        if isinstance(exc, openai.APITimeoutError):
+            return AIServiceError(f"{schema_name}: provider timed out ({exc}).", kind="timeout")
+        return AIServiceError(
+            f"{schema_name}: provider unreachable or failing ({type(exc).__name__}).",
+            kind="unavailable",
+        )
+
+    def _response_to_json(self, response, *, schema: dict, schema_name: str) -> dict:
+        """Pull the text out of a chat completion and parse it."""
+        choices = getattr(response, "choices", None)
+        if not choices:
+            raise AIServiceError(
+                f"{schema_name}: provider returned no choices.", kind="invalid_response"
+            )
+
+        choice = choices[0]
+        message = getattr(choice, "message", None)
+        raw = getattr(message, "content", None) if message else None
+
+        if not raw:
+            # Some reasoning-capable providers leak the useful content into a
+            # reasoning field despite an empty content field.
+            reasoning = getattr(message, "reasoning", None) if message else None
+            if isinstance(reasoning, str) and reasoning.strip():
+                raw = reasoning
+
+        if not raw:
+            finish_reason = getattr(choice, "finish_reason", None)
+            if finish_reason == "length":
+                raise AIServiceError(
+                    f"{schema_name}: response was truncated at the token limit.",
+                    kind="invalid_response",
+                )
+            raise AIServiceError(
+                f"{schema_name}: provider returned no text output "
+                f"(finish_reason={finish_reason!r}).",
+                kind="invalid_response",
+            )
+
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         data = self._extract_json(raw, schema_name=schema_name)
         return self._normalize_output(data, schema, schema_name)
 
     def _parse_model(self, model_cls, data: dict, *, schema_name: str):
         try:
             return model_cls.model_validate(data)
+<<<<<<< HEAD
         except Exception as exc:
             logger.warning("%s: output failed validation: %s", schema_name, type(exc).__name__)
             raise AIServiceError(f"{schema_name}: output failed validation ({type(exc).__name__}).", kind="invalid_response") from exc
+=======
+        except Exception as exc:  # pydantic ValidationError (and anything else)
+            logger.warning("%s: output failed validation: %s", schema_name, exc)
+            raise AIServiceError(
+                f"{schema_name}: output failed validation ({type(exc).__name__}).",
+                kind="invalid_response",
+            ) from exc
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     # ======================================================== question generation
 
@@ -889,6 +1126,7 @@ class OpenAIClient:
     # ============================================================== speech to text
 
     async def transcribe_audio(self, *, audio_bytes: bytes, filename: str) -> str:
+<<<<<<< HEAD
         """Transcribe voice answers with Groq's free-tier Whisper endpoint."""
         settings = get_settings()
         if not settings.groq_api_key and self._groq_client is None:
@@ -923,10 +1161,65 @@ class OpenAIClient:
             if attempt < settings.ai_max_retries_per_model:
                 await asyncio.sleep(0.5)
         raise last_error or AIServiceError("Groq speech transcription failed.", kind="unavailable")
+=======
+        """Speech-to-text (OpenAI, not OpenRouter)."""
+        settings = get_settings()
+        client = self.openai_client  # raises not_configured when unset
+
+        attempts = max(1, settings.openai_max_attempts)
+        last_error: AIServiceError | None = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                transcript = await client.audio.transcriptions.create(
+                    model=settings.openai_transcribe_model,
+                    file=(filename, audio_bytes),
+                    timeout=settings.openai_timeout_seconds,
+                )
+            except openai.AuthenticationError as exc:
+                logger.error("Transcription authentication failed: %s", exc)
+                raise AIServiceError(
+                    "transcription: provider authentication failed.",
+                    kind="not_configured",
+                    user_message=(
+                        "Voice transcription isn't available because the server's API key was "
+                        "rejected. You can continue with text answers."
+                    ),
+                ) from exc
+            except _RETRYABLE_OPENAI_ERRORS as exc:
+                last_error = self._classify_retryable("transcription", exc)
+                logger.warning("Transcription attempt %d/%d failed: %s", attempt, attempts, exc)
+            except openai.OpenAIError as exc:
+                logger.error("Transcription failed: %s", exc)
+                raise AIServiceError(
+                    "transcription: provider error.",
+                    kind="unavailable",
+                    user_message=(
+                        "Voice transcription is temporarily unavailable. "
+                        "You can continue with text answers."
+                    ),
+                ) from exc
+
+            if last_error is None:
+                text = getattr(transcript, "text", None)
+                if text is None:
+                    raise AIServiceError(
+                        "transcription: response had no 'text' field.",
+                        kind="invalid_response",
+                    )
+                return text
+
+            if attempt < attempts:
+                await asyncio.sleep(min(1.5 * attempt, 3.0))
+
+        assert last_error is not None
+        raise last_error
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     # ============================================================== text to speech
 
     async def synthesize_speech(self, *, text: str) -> bytes:
+<<<<<<< HEAD
         """Server-side TTS is intentionally disabled to enforce free-only inference.
 
         The frontend uses the browser Web Speech API for question playback. This
@@ -938,6 +1231,67 @@ class OpenAIClient:
             kind="not_configured",
             user_message="Server-side question audio is disabled. Use browser speech playback or read the question above.",
         )
+=======
+        """Text-to-speech (OpenAI, not OpenRouter)."""
+        settings = get_settings()
+        client = self.openai_client  # raises not_configured when unset
+
+        attempts = max(1, settings.openai_max_attempts)
+        last_error: AIServiceError | None = None
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = await client.audio.speech.create(
+                    model=settings.openai_tts_model,
+                    voice=settings.openai_tts_voice,
+                    input=text,
+                    timeout=settings.openai_timeout_seconds,
+                )
+                content = await response.read()
+                if not content:
+                    raise AIServiceError(
+                        "speech synthesis: provider returned empty audio.",
+                        kind="invalid_response",
+                        user_message=(
+                            "Question audio isn't available right now — read the question above "
+                            "instead."
+                        ),
+                    )
+                return content
+            except openai.AuthenticationError as exc:
+                logger.error("Speech synthesis authentication failed: %s", exc)
+                raise AIServiceError(
+                    "speech synthesis: provider authentication failed.",
+                    kind="not_configured",
+                    user_message=(
+                        "Question audio isn't available because the server's API key was "
+                        "rejected. Read the question above instead."
+                    ),
+                ) from exc
+            except AIServiceError:
+                raise
+            except _RETRYABLE_OPENAI_ERRORS as exc:
+                last_error = self._classify_retryable("speech synthesis", exc)
+                logger.warning(
+                    "Speech synthesis attempt %d/%d failed: %s", attempt, attempts, exc
+                )
+            except openai.OpenAIError as exc:
+                logger.error("Speech synthesis failed: %s", exc)
+                raise AIServiceError(
+                    "speech synthesis: provider error.",
+                    kind="unavailable",
+                    user_message=(
+                        "Question audio is temporarily unavailable — read the question above "
+                        "instead."
+                    ),
+                ) from exc
+
+            if attempt < attempts:
+                await asyncio.sleep(min(1.5 * attempt, 3.0))
+
+        assert last_error is not None
+        raise last_error
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     # ========================================================= candidate profile
 

@@ -5,11 +5,15 @@ export interface UserPreferences {
   defaultDifficulty: UserDifficulty;
   /** Speak each new question aloud automatically when it arrives. */
   autoPlayQuestion: boolean;
+<<<<<<< HEAD
   /** "private" (default) keeps everything off external AI providers. */
   aiProcessing?: "private" | "external";
   /** Set by the server when the user consented to external processing. */
   externalAiConsentAt?: string | null;
   /** Legacy API preference only; per-interview consent is required and cameras always start off. */
+=======
+  /** Start sessions with the self-view camera already enabled. */
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   cameraEnabledByDefault: boolean;
 }
 
@@ -163,6 +167,7 @@ export interface WebcamMetrics {
   lookingAwayRate: number;
   movementRate: number;
   sampledFrames: number;
+<<<<<<< HEAD
   /** Explicit consent for this interview session; required by the API to persist aggregates. */
   consentGiven: boolean;
   postureSamples?: number;
@@ -173,6 +178,8 @@ export interface WebcamMetrics {
   postureChangeRate?: number | null;
   cameraFramingRate?: number | null;
   landmarkConfidence?: number | null;
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 }
 
 export type Confidence = "low" | "medium" | "high";
@@ -286,6 +293,9 @@ export const INTERVIEW_CATEGORIES: { value: InterviewCategory; label: string }[]
   { value: "company-specific", label: "Company-specific" },
   { value: "other", label: "Other" },
 ];
+<<<<<<< HEAD
 
 /** Payload accepted by PATCH /auth/me. `externalAiConsent` is write-only. */
 export type UserPreferencesUpdate = Partial<UserPreferences> & { externalAiConsent?: boolean };
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7

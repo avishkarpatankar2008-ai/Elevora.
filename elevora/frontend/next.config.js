@@ -11,7 +11,11 @@ const BACKEND_ORIGIN = (process.env.BACKEND_ORIGIN ?? "http://127.0.0.1:8000").r
  *     hydration payload unless a nonce-based setup is used; tighten both with
  *     nonces if you deploy behind a proxy that can rewrite them.
  *   - 'wasm-unsafe-eval' lets MediaPipe's WebAssembly runtime instantiate.
+<<<<<<< HEAD
  *   - connect-src allows the face- and pose-landmarker model downloads. Point
+=======
+ *   - connect-src allows the face-landmarker model download. Point
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
  *     NEXT_PUBLIC_FACE_LANDMARKER_MODEL_URL at a self-hosted copy (see
  *     .env.local.example) and this entry can be dropped entirely.
  *   - frame-ancestors is intentionally NOT set: it has to match your embedding
@@ -24,7 +28,11 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
+<<<<<<< HEAD
   "font-src 'self' https://fonts.gstatic.com",
+=======
+  "font-src 'self'",
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   "worker-src 'self' blob:",
   "connect-src 'self' https://storage.googleapis.com",
   "object-src 'none'",

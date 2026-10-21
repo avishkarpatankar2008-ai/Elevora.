@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     auth_register_rate_limit: int = Field(default=60, ge=1, le=1000)
     auth_register_rate_window_seconds: int = Field(default=3_600, ge=1, le=86_400)
 
+<<<<<<< HEAD
     # Per-user cap on requests that can reach an external AI provider, so one
     # account cannot exhaust the shared free-tier quota for everyone else.
     ai_user_rate_limit: int = Field(default=30, ge=1, le=1000)
@@ -86,6 +87,24 @@ class Settings(BaseSettings):
 
     # Transcription is hard-coded to Groq's verified free-plan model ID in
     # services/ai_client.py; no environment override can switch it to a paid ID.
+=======
+    # --------------------------------------------------------- TEXT AI (OpenRouter)
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openai/gpt-4o-mini"
+    openrouter_timeout_seconds: float = Field(default=45.0, ge=5.0, le=300.0)
+    openrouter_max_attempts: int = Field(default=2, ge=1, le=5)
+    openrouter_referer: str = ""
+    """Optional site URL sent to OpenRouter for attribution. Defaults to
+    ``frontend_origin`` when empty."""
+
+    # ---------------------------------------------------------- VOICE AI (OpenAI)
+    openai_api_key: str = ""
+    openai_transcribe_model: str = "gpt-4o-mini-transcribe"
+    openai_tts_model: str = "gpt-4o-mini-tts"
+    openai_tts_voice: str = "alloy"
+    openai_timeout_seconds: float = Field(default=60.0, ge=5.0, le=300.0)
+    openai_max_attempts: int = Field(default=2, ge=1, le=5)
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
     # ------------------------------------------------------------------ uploads
     max_audio_upload_bytes: int = Field(default=15 * 1024 * 1024, ge=64 * 1024)

@@ -82,6 +82,7 @@ def check_auth_rate_limit(scope: str, identifier: str) -> float:
     return _limiter.check(f"{scope}:{identifier}", limit=limit, window_seconds=window)
 
 
+<<<<<<< HEAD
 def check_ai_user_rate_limit(user_id: str) -> float:
     """Seconds-to-wait (0.0 = allowed) for an AI-backed request by one user."""
     settings = get_settings()
@@ -94,6 +95,8 @@ def check_ai_user_rate_limit(user_id: str) -> float:
     )
 
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 def reset_rate_limits() -> None:
     """Test/ops hook — clears every counter."""
     _limiter.reset()

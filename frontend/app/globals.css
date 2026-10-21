@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ tokens */
+:root {
+  /* Surfaces */
+  --color-navy-950: 11 27 50; /* page background */
+  --color-navy-900: 13 30 76; /* primary navy */
+  --color-surface: 16 39 70;
+  --color-surface-2: 19 45 74;
+  --color-slate: 38 65 94;
+
+  /* Brand */
+  --color-blue: 131 166 206;
+  --color-plum: 196 140 179;
+  --color-blush: 229 201 215;
+
+  /* Text */
+  --color-text-primary: 247 244 246;
+  --color-text-secondary: 199 209 221;
+  --color-text-muted: 147 163 184;
+
+  /* Lines — stored as the blush triplet; alpha is applied by the theme so
+     that both `border-line` and `border-blush/40`-style modifiers work. */
+  --color-border: 229 201 215;
+
+  /* Feedback */
+  --color-success: 123 200 164;
+  --color-warning: 229 192 138;
+  --color-danger: 224 138 154;
+
+  /* Onda template accent */
+  --color-violet: 108 60 255;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth bg-base;
+  }
+
+  body {
+    /* Ambient lighting only: two wide, low-opacity washes plus a faint
+       vertical falloff. Fixed so it reads as lighting rather than scrolling
+       decoration. */
+    background-color: rgb(var(--color-navy-950));
+    background-image:
+      radial-gradient(60% 55% at 15% 0%, rgba(131, 166, 206, 0.14), transparent 62%),
+      radial-gradient(50% 50% at 85% 5%, rgba(196, 140, 179, 0.12), transparent 60%),
+      linear-gradient(180deg, rgba(13, 30, 76, 0.55) 0%, rgba(11, 27, 50, 0) 42%);
+    background-attachment: fixed;
+    @apply text-ink antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-ink;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgba(196, 140, 179, 0.32);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--color-blue));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* The scrollbar is part of the surface system, not the OS default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(131, 166, 206, 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(131, 166, 206, 0.28);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+
+  /* Motion is a garnish: users who ask for less get none of it. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Surface levels -------------------------------------------------------- */
+  .surface-1 {
+    @apply rounded-2xl border border-line bg-surface/70 shadow-soft backdrop-blur-md;
+  }
+  .surface-2 {
+    @apply rounded-2xl border border-line-strong bg-navy/60 shadow-raise backdrop-blur-xl;
+  }
+  .glass {
+    background: rgba(13, 30, 76, 0.55);
+    @apply border border-line backdrop-blur-xl;
+  }
+  .glass-strong {
+    background: rgba(19, 45, 74, 0.62);
+    @apply border border-line-strong backdrop-blur-2xl;
+  }
+
+  /* Typography ----------------------------------------------------------- */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-blue/90;
+  }
+  .muted {
+    @apply text-ink-soft;
+  }
+
+  /* Decorative ----------------------------------------------------------- */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(229, 201, 215, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(229, 201, 215, 0.05) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(70% 60% at 50% 0%, #000 40%, transparent 100%);
+  }
+  .brand-text {
+    @apply bg-gradient-to-r from-blue via-blue-soft to-plum bg-clip-text text-transparent;
+  }
+  .divider-brand {
+    @apply h-px w-full bg-brand-line opacity-40;
+  }
+  /* Skeleton shimmer used by every loading state. */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-white/[0.05];
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(229, 201, 215, 0.09),
+      transparent
+    );
+  }
+
+  /* Onda-inspired display typography */
+  .text-display-title {
+    font-family: var(--font-gabarito), "Gabarito", "Arial Black", sans-serif;
+    font-weight: 800;
+    line-height: 0.88;
+    letter-spacing: -0.055em;
+  }
+  .text-section-title {
+    font-family: var(--font-gabarito), "Gabarito", "Arial Black", sans-serif;
+    font-weight: 700;
+    line-height: 0.96;
+    letter-spacing: -0.04em;
+  }
+
+  /* Onda-style dot accent */
+  .onda-dot {
+    display: inline-block;
+    width: 0.19em;
+    height: 0.19em;
+    margin-left: 0.035em;
+    border-radius: 999px;
+    background: rgb(var(--color-violet));
+    vertical-align: baseline;
+  }
+
+  /* Onda-style button with expanding dot hover */
+  .onda-btn {
+    @apply relative isolate inline-flex items-center gap-2.5 overflow-hidden rounded-full px-6 py-3 font-semibold text-white transition-colors;
+    background: rgb(var(--color-violet));
+  }
+  .onda-btn::before {
+    content: "";
+    @apply h-2 w-2 shrink-0 rounded-full bg-white;
+  }
+  .onda-btn::after {
+    content: "";
+    @apply absolute -z-10 h-2 w-2 rounded-full;
+    left: 28px;
+    top: 50%;
+    margin: -4px 0 0 -4px;
+    background: rgb(11 27 50);
+    transform: scale(0);
+    transition: transform 0.5s cubic-bezier(0.7, 0, 0.2, 1);
+  }
+  @media (hover: hover) {
+    .onda-btn:hover::after {
+      transform: scale(60);
+    }
+  }
+
+  /* Onda-style link with sliding underline */
+  .onda-link {
+    @apply inline-flex items-center gap-2 font-semibold;
+  }
+  .onda-link-label {
+    @apply relative;
+    padding-block: 3px;
+  }
+  .onda-link-label::after {
+    content: "";
+    @apply absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-current;
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    transition: transform 0.45s cubic-bezier(0.7, 0, 0.2, 1);
+  }
+  @media (hover: hover) {
+    .onda-link:hover .onda-link-label::after {
+      transform: scaleX(1);
+    }
+  }
+
+  /* FAQ details marker style from Onda */
+  .onda-faq summary {
+    @apply flex cursor-pointer list-none items-center justify-between gap-5 py-5;
+  }
+  .onda-faq summary::-webkit-details-marker {
+    display: none;
+  }
+  .onda-faq .faq-mark {
+    @apply relative h-[34px] w-[34px] shrink-0 rounded-full;
+    border: 1.5px solid currentColor;
+  }
+  .onda-faq .faq-mark::after {
+    content: "";
+    @apply absolute inset-0 m-auto h-2.5 w-2.5 rounded-full;
+    background: rgb(var(--color-violet));
+    transition: transform 0.45s cubic-bezier(0.7, 0, 0.2, 1);
+  }
+  .onda-faq details[open] .faq-mark::after {
+    transform: scale(3.1);
+  }
+  @media (hover: hover) {
+    .onda-faq summary:hover .faq-mark::after {
+      transform: scale(1.8);
+    }
+    .onda-faq details[open] summary:hover .faq-mark::after {
+      transform: scale(3.1);
+    }
+  }
+}

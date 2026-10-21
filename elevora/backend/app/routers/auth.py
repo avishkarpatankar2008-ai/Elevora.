@@ -151,6 +151,7 @@ async def update_me(
 
     if payload.preferences is not None:
         supplied = payload.preferences.model_dump(exclude_unset=True)
+<<<<<<< HEAD
         consent = supplied.pop("externalAiConsent", None)
         ai_mode = supplied.get("aiProcessing")
         if ai_mode == "external":
@@ -164,6 +165,8 @@ async def update_me(
             updates["preferences.externalAiConsentAt"] = datetime.now(timezone.utc)
         elif ai_mode == "private":
             updates["preferences.externalAiConsentAt"] = None
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         # Merge rather than replace so a partial update can't drop the other
         # preference.
         for key, value in supplied.items():

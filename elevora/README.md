@@ -40,6 +40,7 @@ rest 404).
 
 The browser only ever talks to the Next.js origin: `/api/*` is proxied
 server-side to `BACKEND_ORIGIN` (default `http://127.0.0.1:8000`), so the session
+<<<<<<< HEAD
 cookie stays first-party and there is no CORS to configure. Configure at least one of
 `GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY` to enable live AI. Text
 requests follow the fixed six-model free-only chain documented below; when no model
@@ -62,6 +63,35 @@ Checks below were run in the current editing environment on 2026-10-19. Do not t
 | Webcam/posture behavior in a browser | Not run | No browser/camera runtime available; a manual camera-consent and model-load check remains required |
 
 The targeted tests cover the model allowlist, primary-provider selection, sequential failover after malformed output, 429 cooldown behavior, bounded timeout retries, deterministic fallback when providers fail or are cooling down, TTS being disabled server-side, and the fact that posture metrics do not affect the score. Run the commands under `backend/` and `frontend/` after installing their locked dependencies to finish verification.
+=======
+cookie stays first-party and there is no CORS to configure. Text generation
+needs `OPENROUTER_API_KEY`; voice needs `OPENAI_API_KEY`; without them the app
+runs and reports "AI isn't configured" instead of failing silently.
+
+## What's actually verified vs. what isn't
+
+This phase has an unusually wide confidence spread — it contains both the
+best-tested code in the project and, by a real margin, the least-tested.
+
+| Component | Verified how | Confidence |
+|---|---|---|
+| Backend logic (state machine, endpoint plumbing, orchestration) | Full pytest suite (**231 tests**) against an in-memory Mongo and a scripted fake AI client | High |
+| Concurrency / idempotency / retry safety | `tests/test_reliability.py` — duplicate submissions, stale claims, failed AI calls, concurrent report generation | High |
+| Security (authz isolation, rate limiting, upload validation, prompt-injection containment, error hygiene) | `tests/test_security.py` (31 tests) | High |
+| AI client failure handling (retries, timeouts, malformed output, missing keys) | `tests/test_ai_client.py` (21 tests, stubbed provider) | High for our behavior; the providers themselves are unverified |
+| **PDF/DOCX text extraction** | Tested against real generated files | High |
+| **Scoring/weighting math** (Phase 6) | Pure unit tests, no AI/DB | High |
+| **Speech analytics** (`app/services/speech_analytics.py`) | **Tested against real generated audio** — ffmpeg is installed in this sandbox, so tests build actual audio clips with known silence gaps (via pydub's tone/silence generators), export them to real webm/wav bytes, and confirm the detected pauses/duration/WPM match. Caught and fixed a real bug (punctuation broke multi-word filler matching) before it shipped. | **High — same category as the PDF/DOCX parsing, genuinely not "unverified"** |
+| **Delivery/Webcam deterministic scoring** (`app/services/deterministic_scoring.py`) | Pure unit tests, no AI/DB — 16 tests check every threshold | **High** |
+| **End-to-end voice → Delivery score** | Integration test posts real generated audio through the actual `/answer/audio` endpoint and confirms a real (non-placeholder) Delivery score comes out the other end of a generated report | High |
+| Frontend | `tsc --noEmit`, `eslint`, full `next build` (10 routes, first-load JS ≤ 108 kB) — all clean, fonts self-hosted | High for compilation |
+| Frontend behavior (API client error mapping, webcam aggregation math, honest "Not available" rendering) | `npx vitest run` — 23 tests, jsdom + Testing Library | High for the tested units |
+| **The MediaPipe API calls themselves** (`lib/webcamAnalytics.ts`) | Checked against the *actual installed package's real TypeScript definitions* (not recalled from training data), and the aggregation arithmetic is unit-tested. The WASM runtime is now served from our own origin (copied out of the pinned package), so the previous CDN dependency is gone. | Medium for API correctness |
+| **Whether the webcam analytics actually work in a browser** | **Not verified at all — no camera, no browser.** Model loading from the CDN, `detectForVideo` against a live stream, and the head-orientation math (see the file's own extensive comments) have never run. | **The single least-verified piece in the entire project — more uncertain than VoiceControls or CameraPreview, which wrap simpler, longer-stable browser APIs** |
+| **OpenRouter text / OpenAI voice integration** | Not tested against the real APIs (no key, no network from this environment) | Unverified — `python -m scripts.smoke_test_ai` before trusting |
+| **Browser audio/camera** (`VoiceControls`, `CameraPreview`) | Type-checked and linted only. No browser available. | Unverified |
+| End-to-end in a browser | Not done | Untested |
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 ## A scope decision you should know about: I did not build realtime/WebRTC
 
@@ -80,6 +110,7 @@ And its own mistake list: *"Mistake 4 — Overengineering voice: Get a
 functional voice loop first. Optimize latency later."*
 
 I built **Step A**: record a full answer in the browser, upload it, transcribe
+<<<<<<< HEAD
 it with Groq Whisper, run it through the same Phase 2 engine, then use the
 browser's Web Speech API to read the next question aloud. Not **Step B** (a persistent WebRTC connection
 doing live streaming speech-to-speech).
@@ -87,6 +118,15 @@ doing live streaming speech-to-speech).
 The honest reason, beyond following the spec's own sequencing advice: Step B
 requires a browser, a microphone, and a live network connection to a
 realtime speech endpoint to build against at all — none of which exist in the
+=======
+it, run it through the same (tested) Phase 2 engine, then fetch synthesized
+speech for the next question. Not **Step B** (a persistent WebRTC connection
+doing live streaming speech-to-speech).
+
+The honest reason, beyond following the spec's own sequencing advice: Step B
+requires a browser, a microphone, and a live network connection to OpenAI's
+Realtime endpoint to build against at all — none of which exist in the
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 sandbox this was built in. Writing WebRTC signaling and audio-streaming code
 with zero ability to run it isn't a smaller version of the feature, it's a
 guess at the feature. Step A is at least testable in the ways that matter
@@ -108,7 +148,11 @@ care whether text arrived by typing, file upload, or a live stream.
   are supported rather than forcing an upload). Both are restricted to
   `draft` interviews, matching the spec's own flow: configure → upload →
   start.
+<<<<<<< HEAD
 - **Extraction**: raw text goes through the schema-validated free-only AI router into a
+=======
+- **Extraction**: raw text goes through OpenAI structured outputs into a
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   `CandidateProfile` (skills, education, experience, projects, technologies,
   achievements, claims) or `JobProfile` (role, company, industry, required/
   preferred skills, responsibilities, seniority) — the exact shapes from the
@@ -269,7 +313,11 @@ intended fallback.
 ```bash
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+<<<<<<< HEAD
 .venv/bin/python -m pytest -q              # prior baseline: 233 passed (72s, 2026-10-03; not current routing/posture validation)
+=======
+.venv/bin/python -m pytest -q              # 233 passed (72s)
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 .venv/bin/python -m scripts.smoke_test_ai  # real provider calls; needs keys
 ```
 
@@ -343,8 +391,13 @@ accents — defined once and consumed everywhere:
   each interview category to subjects, question types, and an interviewer
   style — a deliberate stand-in for the full reusable profile system the
   spec describes for Phase 8/9.
+<<<<<<< HEAD
 - **Question generation / answer analysis**: one question at a time through the
   six-model free-only router with strict schema validation; each answer scored 1–5 with strengths,
+=======
+- **Question generation / answer analysis**: one question at a time via
+  OpenAI structured outputs; each answer scored 1–5 with strengths,
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   weaknesses, and a follow-up decision, mirroring the spec's Day-9 shape.
 - **Conversation state**: stored on the interview document — topic,
   difficulty (1–5, adaptive ±1 per turn), asked topics/questions, follow-up
@@ -359,6 +412,7 @@ accents — defined once and consumed everywhere:
   logic (phrasing, judgment), per the spec's own architecture rule.
 - **No live score is shown to the candidate mid-interview** — evaluations
   are stored for the Phase 6 report, not surfaced as a running scoreboard.
+<<<<<<< HEAD
 - **Voice (Phase 3)**: STT uses Groq Whisper, while question playback uses
   browser Web Speech. Server-side TTS is disabled in free-only mode; the legacy
   `AIClient` method remains for interface compatibility. Transcript is always surfaced to the
@@ -377,6 +431,26 @@ accents — defined once and consumed everywhere:
   question-generation call includes the resume/JD content and is
   instructed to ground questions in it by name. Review each provider's data handling
   terms first: free-tier APIs may log or use prompts for service improvement. Stored embedded on the
+=======
+- **Voice (Phase 3)**: STT/TTS live in the same `AIClient` interface as
+  question generation and answer analysis, all covered by the same
+  `FakeAIClient` test pattern. Transcript is always surfaced to the
+  candidate rather than hidden. Text input stays available alongside voice
+  as a fallback for an integration that's never been tested against a real
+  browser.
+- **Webcam (Phase 4)**: a local, unanalyzed self-view (`CameraPreview`) plus
+  a status bar (mic/camera/timer/AI-speaking/exit). The timer is
+  informational only — the engine still ends sessions by question count,
+  not wall clock. Exiting early (`POST /interviews/{id}/exit`) marks the
+  interview `abandoned` rather than deleting it, so a partial transcript
+  survives.
+- **Resume/JD (Phase 5)**: PDF/DOCX parsed locally (genuinely tested, not
+  mocked) into `CandidateProfile`/`JobProfile` via OpenAI structured
+  outputs, shown back to the candidate before the interview starts so a
+  hallucinated extraction is catchable early. Once uploaded, every
+  question-generation call includes the resume/JD content and is
+  instructed to ground questions in it by name. Stored embedded on the
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   interview document rather than the spec's separate
   `candidate_profiles`/`job_profiles` collections — no raw file storage,
   no cross-interview resume reuse yet.
@@ -389,7 +463,11 @@ POST   /interviews          GET /interviews           GET/DELETE /interviews/{id
 POST   /interviews/{id}/start                          — generates the opening question
 POST   /interviews/{id}/answer      body: {"answer"}   — text answer -> next question or completion
 GET    /interviews/{id}/turns                          — full transcript
+<<<<<<< HEAD
 GET    /interviews/{id}/question-audio                 — legacy server-TTS route (disabled in free-only mode; use browser speech)
+=======
+GET    /interviews/{id}/question-audio                 — TTS for the pending question (Phase 3)
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 POST   /interviews/{id}/answer/audio  multipart file    — voice answer -> same engine as text (Phase 3)
 POST   /interviews/{id}/exit                           — leave early, marks abandoned (Phase 4)
 POST   /interviews/{id}/resume         multipart file   — extract + store CandidateProfile (Phase 5)
@@ -406,7 +484,16 @@ tested Python, not an AI-picked number; `confidence` is computed from turn
 count, not self-rated by the model. Phase 7 adds real Delivery/Webcam
 scores on top of that foundation — see above.
 
+<<<<<<< HEAD
 Before production use, run `python -m scripts.smoke_test_ai` from `backend/` with one or more dedicated free-tier keys. The smoke test makes live calls; those calls were not available in this editing environment. The router code is covered by scripted unit tests, not by current provider integration tests.
+=======
+Before trusting any of the OpenAI text calls (`generate_question`,
+`analyze_answer`, `extract_candidate_profile`, `extract_job_profile`,
+`generate_evaluation`), run `python -m scripts.smoke_test_ai` with a real
+key and read its output — every automated test here uses a scripted fake,
+so none of these have been called against the real API from this
+environment.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 ## Phase 8 — Interview Profiles
 
@@ -540,6 +627,7 @@ Beyond the current scope — the brief doesn't specify it further from here, so 
 natural candidates (multi-profile interview packs, org-shared profiles,
 profile analytics) are open design questions, not committed work.
 
+<<<<<<< HEAD
 ## Free-only AI routing and webcam privacy
 
 Text requests use this **fixed six-model order** (model IDs are not environment-overridable):
@@ -560,6 +648,8 @@ The router uses sequential failover, bounded retries for transient failures, per
 
 **Optional on-device posture estimation:** each interview starts with the camera off and an unchecked, per-session consent box. After consent, MediaPipe face and pose landmarks are processed in the browser. Raw video and frame-level landmarks are not uploaded or stored; only validated aggregate rates are submitted. The session summary reports head/shoulder and torso geometry, camera framing, landmark confidence, and visible position changes descriptively. The posture fields do not affect the webcam score. They are not measures of honesty, emotion, intelligence, personality, engagement, or suitability. `sittingPostureRate` is only an upright-torso proxy and cannot prove someone is sitting. Users can revoke consent mid-session; doing so turns the camera off and discards collected measurements. Interviews continue normally without a camera.
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 ## Deployment
 
 ```bash
@@ -576,11 +666,16 @@ in the sandbox this pass was written in.
 **Behind your own proxy/infrastructure** — the short version:
 
 1. API: `ENV=production`, a real `JWT_SECRET` (≥ 32 chars), `MONGO_URI`,
+<<<<<<< HEAD
    `FRONTEND_ORIGIN`, and provider keys. Any one of `GROQ_API_KEY`,
    `GEMINI_API_KEY`, or `OPENROUTER_API_KEY` enables its configured slice of the
    chain; set **all three** to make all six model entries eligible for failover.
    Use dedicated free-tier credentials with no paid billing attached. The app
    refuses to start if the production configuration is unsafe. Install `ffmpeg`/`ffprobe`
+=======
+   `FRONTEND_ORIGIN`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`. The app refuses to
+   start if the production configuration is unsafe. Install `ffmpeg`/`ffprobe`
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
    in the image or speech metrics stay unavailable.
 2. Web: `BACKEND_ORIGIN` pointing at the API service; the `prebuild` script
    copies the MediaPipe runtime into `public/mediapipe/wasm`.

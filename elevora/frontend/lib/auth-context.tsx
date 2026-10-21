@@ -2,7 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { authApi } from "./api";
+<<<<<<< HEAD
 import type { User, UserPreferencesUpdate } from "./types";
+=======
+import type { User, UserPreferences } from "./types";
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 interface AuthContextValue {
   user: User | null;
@@ -11,7 +15,11 @@ interface AuthContextValue {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+<<<<<<< HEAD
   updateProfile: (data: { name?: string; preferences?: UserPreferencesUpdate }) => Promise<User>;
+=======
+  updateProfile: (data: { name?: string; preferences?: Partial<UserPreferences> }) => Promise<User>;
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -54,7 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(
+<<<<<<< HEAD
     async (data: { name?: string; preferences?: UserPreferencesUpdate }) => {
+=======
+    async (data: { name?: string; preferences?: Partial<UserPreferences> }) => {
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
       const updated = await authApi.updateMe(data);
       setUser(updated);
       return updated;

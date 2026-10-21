@@ -11,7 +11,11 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Select } from "@/components/Select";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+<<<<<<< HEAD
 import { LANGUAGE_OPTIONS, type UserDifficulty, type UserPreferencesUpdate } from "@/lib/types";
+=======
+import { LANGUAGE_OPTIONS, type UserDifficulty, type UserPreferences } from "@/lib/types";
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 const DIFFICULTY_OPTIONS: { value: UserDifficulty; label: string }[] = [
   { value: "easy", label: "Easy — warm up" },
@@ -132,9 +136,15 @@ function SettingsContent() {
   const [autoPlayQuestion, setAutoPlayQuestion] = useState(
     user?.preferences.autoPlayQuestion ?? false
   );
+<<<<<<< HEAD
 
   const externalAi = user?.preferences.aiProcessing === "external" && !!user?.preferences.externalAiConsentAt;
   const [consentChecked, setConsentChecked] = useState(false);
+=======
+  const [cameraEnabledByDefault, setCameraEnabledByDefault] = useState(
+    user?.preferences.cameraEnabledByDefault ?? true
+  );
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
   const [saving, setSaving] = useState<SectionId | null>(null);
   const [savedSection, setSavedSection] = useState<SectionId | null>(null);
@@ -169,7 +179,11 @@ function SettingsContent() {
     }
   }
 
+<<<<<<< HEAD
   function savePreferences(partial: UserPreferencesUpdate, sectionId: SectionId) {
+=======
+  function savePreferences(partial: Partial<UserPreferences>, sectionId: SectionId) {
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     return save(sectionId, { preferences: partial });
   }
 
@@ -348,8 +362,30 @@ function SettingsContent() {
                 The interview room can answer by voice and score camera presence. Both are optional —
                 text answers are scored on the same rubric.
               </p>
+<<<<<<< HEAD
               <div className="mt-5 rounded-xl border border-line bg-surface/50 p-3 text-xs leading-5 text-ink-mute">
                 The camera always starts off. Each interview has a separate, unchecked consent box before on-device posture estimation or camera access can begin. Saved preferences never override that consent.
+=======
+              <div className="mt-5 space-y-3">
+                <Toggle
+                  label="Start sessions with the camera on"
+                  hint="Turns on your self-view as the room opens. You can switch it off at any time during a session."
+                  checked={cameraEnabledByDefault}
+                  onChange={(next) => {
+                    setCameraEnabledByDefault(next);
+                    void savePreferences({ cameraEnabledByDefault: next }, "devices");
+                  }}
+                  disabled={saving === "devices"}
+                />
+              </div>
+              <div className="mt-5 flex items-center gap-3">
+                {saving === "devices" && <span className="text-xs text-ink-mute">Saving…</span>}
+                {savedSection === "devices" && (
+                  <span role="status" className="text-xs text-success">
+                    Saved.
+                  </span>
+                )}
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               </div>
               <div className="mt-6 border-t border-line pt-5">
                 <h3 className="text-sm font-medium text-ink">Check your devices</h3>
@@ -377,11 +413,19 @@ function SettingsContent() {
                   ],
                   [
                     "Voice answers",
+<<<<<<< HEAD
                     "Voice transcription requires external AI processing (off by default). When enabled, the recording is sent once to be transcribed and then discarded — raw audio is never persisted. Only the transcript and the speech metrics measured from it are saved with the interview.",
                   ],
                   [
                     "Transcripts and reports",
                     "Stored in your account so you can review them. Generating a report sends the transcript to an external AI evaluator only if you turned on external AI processing; otherwise it is scored privately on the server.",
+=======
+                    "The recording is sent once to be transcribed and then discarded — raw audio is never persisted. Only the transcript and the speech metrics measured from it are saved with the interview.",
+                  ],
+                  [
+                    "Transcripts and reports",
+                    "Stored in your account so you can review them. Generating a report sends the transcript to the AI evaluator — it never happens automatically.",
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
                   ],
                   [
                     "Deleting data",
@@ -394,6 +438,7 @@ function SettingsContent() {
                   </div>
                 ))}
               </dl>
+<<<<<<< HEAD
               <div className="mt-6 rounded-xl border border-line bg-navy-950/30 p-4" data-testid="ai-processing">
                 <h3 className="text-sm font-medium text-ink">AI processing</h3>
                 <p className="mt-1 text-sm leading-6 text-ink-soft" role="status">
@@ -444,6 +489,8 @@ function SettingsContent() {
                   </span>
                 )}
               </div>
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               <div className="mt-5 flex flex-wrap gap-2">
                 <ButtonLink href="/dashboard" variant="secondary" size="sm">
                     Review my interviews

@@ -20,7 +20,11 @@ import type { RecordingState } from "@/components/VoiceControls";
 import { ApiError, interviewsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { INTERVIEW_CATEGORIES, type Interview, type InterviewTurn } from "@/lib/types";
+<<<<<<< HEAD
 import { buildPostureSummary, WebcamAnalyticsTracker, type TrackerStatus } from "@/lib/webcamAnalytics";
+=======
+import { WebcamAnalyticsTracker, type TrackerStatus } from "@/lib/webcamAnalytics";
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 function categoryLabel(value: string) {
   return INTERVIEW_CATEGORIES.find((category) => category.value === value)?.label ?? value;
@@ -147,10 +151,17 @@ function LiveInterviewView({
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
+<<<<<<< HEAD
   // Camera and pose analysis always start off. Stored preferences never replace session consent.
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [postureConsent, setPostureConsent] = useState(false);
   const [analyticsSummary, setAnalyticsSummary] = useState<string | null>(null);
+=======
+  // Honours the saved "start with the camera on" preference, defaulting to on.
+  const [cameraEnabled, setCameraEnabled] = useState(
+    user?.preferences.cameraEnabledByDefault ?? true
+  );
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -167,6 +178,7 @@ function LiveInterviewView({
 
   useEffect(() => {
     setMicAvailable(supportsMicrophone());
+<<<<<<< HEAD
     return () => trackerRef.current?.close();
   }, []);
 
@@ -190,6 +202,11 @@ function LiveInterviewView({
 
   const handleFrameSample = useCallback((video: HTMLVideoElement) => {
     if (!postureConsent) return;
+=======
+  }, []);
+
+  const handleFrameSample = useCallback((video: HTMLVideoElement) => {
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     const tracker = trackerRef.current;
     if (!tracker) return;
     void tracker.sample(video).then(() => {
@@ -197,6 +214,7 @@ function LiveInterviewView({
         previous === tracker.getStatus() ? previous : tracker.getStatus()
       );
       setAnalyticsSamples(tracker.getSampleCount());
+<<<<<<< HEAD
       setAnalyticsSummary(buildPostureSummary(tracker.getAggregate()));
     });
   }, [postureConsent]);
@@ -207,6 +225,16 @@ function LiveInterviewView({
     if (!aggregate) return; // camera off, model failed to load, or too few samples
     try {
       await interviewsApi.submitWebcamMetrics(interview.id, { ...aggregate, consentGiven: true });
+=======
+    });
+  }, []);
+
+  async function submitWebcamMetricsIfAvailable() {
+    const aggregate = trackerRef.current?.getAggregate();
+    if (!aggregate) return; // camera off, model failed to load, or too few samples
+    try {
+      await interviewsApi.submitWebcamMetrics(interview.id, aggregate);
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     } catch {
       // Best-effort by design: the report shows "Not available" for webcam
       // rather than a fabricated number.
@@ -422,11 +450,15 @@ function LiveInterviewView({
             turns={turns}
             questionNumberShown={Math.max(1, questionNumberShown)}
             cameraEnabled={cameraEnabled}
+<<<<<<< HEAD
             onToggleCamera={handleToggleCamera}
             postureConsent={postureConsent}
             onPostureConsentChange={handlePostureConsentChange}
             analyticsSummary={analyticsSummary}
             onCameraStatusChange={setCameraStatus}
+=======
+            onToggleCamera={() => setCameraEnabled((previous) => !previous)}
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
             cameraStatus={cameraStatus}
             onFrameSample={handleFrameSample}
             analyticsStatus={analyticsStatus}
@@ -441,14 +473,21 @@ function LiveInterviewView({
         recordingState={recordingState}
         cameraEnabled={cameraEnabled}
         cameraStatus={cameraStatus}
+<<<<<<< HEAD
         cameraConsentGiven={postureConsent}
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         isBusy={isBusy}
         canSubmit={Boolean(answer.trim()) && Boolean(interview.pendingQuestion)}
         onRecord={() => {
           setRecordSignal((signal) => signal + 1);
         }}
         onStopRecording={() => setStopSignal((signal) => signal + 1)}
+<<<<<<< HEAD
         onToggleCamera={handleToggleCamera}
+=======
+        onToggleCamera={() => setCameraEnabled((previous) => !previous)}
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
         onFocusText={() => textareaRef.current?.focus()}
         onSubmit={handleTextSubmit}
         confirmExit={confirmExit}

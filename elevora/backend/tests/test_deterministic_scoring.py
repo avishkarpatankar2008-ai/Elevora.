@@ -99,6 +99,7 @@ class TestScoreWebcam:
     def test_evidence_cites_sampled_frame_count(self):
         _, evidence = score_webcam(_webcam(sampledFrames=42))
         assert "42 sampled frames" in evidence
+<<<<<<< HEAD
 
     def test_metrics_default_to_no_consent_unless_explicitly_set(self):
         assert _webcam().consentGiven is False
@@ -119,3 +120,5 @@ class TestScoreWebcam:
         assert "not used to alter score" in evidence
         assert "90%" in evidence
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7

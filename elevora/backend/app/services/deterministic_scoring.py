@@ -79,6 +79,7 @@ def score_webcam(metrics: WebcamMetrics) -> tuple[int, str]:
         score -= 1
         notes.append(f"frequent movement detected in {metrics.movementRate * 100:.0f}% of measured windows")
 
+<<<<<<< HEAD
     # Pose-derived metrics are deliberately descriptive only: they do not change
     # the webcam score and must never be interpreted as character or suitability.
     if metrics.postureSamples >= 3:
@@ -97,6 +98,8 @@ def score_webcam(metrics: WebcamMetrics) -> tuple[int, str]:
             pose_notes.append(f"mean landmark confidence was {metrics.landmarkConfidence * 100:.0f}%")
         notes.append("Descriptive posture measurements only (not used to alter score): " + "; ".join(pose_notes))
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     score = max(0, min(5, score))
     evidence = "; ".join(notes) + f". Based on {metrics.sampledFrames} sampled frames."
     return score, evidence

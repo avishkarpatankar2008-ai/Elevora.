@@ -1,7 +1,10 @@
 # ELEVORA — Production Readiness Report
 
+<<<<<<< HEAD
 > **Update dated 2026-10-19:** The six-model free-only router and consent-first on-device posture analytics described in the README were added after the original validation snapshot below. Historical test counts and command results in this report refer to the earlier code and must not be read as validation of these new changes. Current checks are recorded in the final addendum.
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 Date: 2026-10-03. Scope: the whole application (FastAPI API + Next.js client), audited and hardened
 end to end, with every claim below backed by a command that was actually run in this workspace.
 
@@ -177,7 +180,12 @@ frames).
 - MediaPipe never enters the main bundle (dynamic import inside the tracker) and its WASM is served
   from our own origin with a cache policy.
 - The interview room samples the camera once per second on-device instead of streaming video.
+<<<<<<< HEAD
 - Question playback now uses browser Web Speech. Server-side TTS is disabled in free-only mode; the legacy question-audio API remains only for compatibility and will return a safe unavailable response.
+=======
+- TTS audio is cached in-process keyed by (model, voice, text), so replaying a question doesn't
+  re-bill OpenAI.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 - Indexes match the access patterns (`users.email` unique, `(userId, createdAt)`, `(userId, status)`,
   `interview_turns (interviewId, sequence)` unique, profile lookups).
 - Bounded listings, chunked uploads, and `AbortController` on page loads; dashboard derivation is
@@ -224,17 +232,30 @@ Environment: Python 3.11.2, Node v22.22.3, ffmpeg/ffprobe present, no MongoDB da
   `/health` → `{"status":"ok","database":"connected"}`; the Next.js dev server served the app and
   proxied `/api/*` to it. Registration, login, profile listing, interview creation and the
   dashboard were exercised through the API and the UI routes.
+<<<<<<< HEAD
 - The free-only router now returns schema-valid deterministic fallback content when no free model is configured or all configured models are exhausted; answer/evaluation fallback text explicitly calls for manual review.
+=======
+- Every AI-dependent path returns a 502 with a candidate-safe message when no API key is configured
+  (verified by test and in the live run) rather than crashing or faking a result.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 ---
 
 ## 8. Remaining limitations
 
 - Nothing that requires a browser or a real provider key is verified here: camera/mic behavior,
+<<<<<<< HEAD
   MediaPipe against a live face, real Groq/Gemini/OpenRouter calls, and cross-browser quirks. Section 9
   lists the exact steps to verify each.
 - Delivery/Webcam thresholds are heuristics with no calibration data.
 - AI rate-limit cooldowns, diagnostics, concurrency semaphores and response cache are per process; a multi-worker deployment needs shared state (such as Redis) for global limits. The interview engine retains its existing persistent idempotency controls.
+=======
+  MediaPipe against a live face, real OpenRouter/OpenAI calls, and cross-browser quirks. Section 9
+  lists the exact steps to verify each.
+- Delivery/Webcam thresholds are heuristics with no calibration data.
+- Rate limiting and the TTS cache are per process; a multi-worker deployment needs shared state
+  (Redis) for global limits.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 - No password reset, email verification, or account deletion.
 - Interview history has no paging UI (the API is bounded at 200).
 - Docker images could not be built in this sandbox (no Docker daemon); the compose file is provided
@@ -251,9 +272,13 @@ Environment: Python 3.11.2, Node v22.22.3, ffmpeg/ffprobe present, no MongoDB da
       `MONGO_DB_NAME` set, `MONGO_SERVER_SELECTION_TIMEOUT_MS` ≤ 10000.
 - [ ] `FRONTEND_ORIGIN` is the exact public origin (no trailing slash, not localhost), and
       `COOKIE_SAMESITE=lax` (or `none` with `COOKIE_SECURE=true` and HTTPS).
+<<<<<<< HEAD
 - [ ] Free-only AI: Groq primary (`openai/gpt-oss-120b`), Gemini Flash/Flash-Lite, and three
       OpenRouter `:free` fallback variants configured with free-tier-only account keys.
 - [ ] Voice transcription uses Groq `whisper-large-v3-turbo`; browser Web Speech handles playback.
+=======
+- [ ] `OPENROUTER_API_KEY` + a model that supports structured outputs; `OPENAI_API_KEY` for voice.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 - [ ] `AUTH_*` rate limits sized for expected traffic.
 
 **Host / runtime**
@@ -261,8 +286,13 @@ Environment: Python 3.11.2, Node v22.22.3, ffmpeg/ffprobe present, no MongoDB da
       the Delivery dimension reports "Not available".
 - [ ] `node_modules` present before building the frontend; the `prebuild` script copies the
       MediaPipe runtime into `public/mediapipe/wasm`.
+<<<<<<< HEAD
 - [ ] For offline/air-gapped deployments, self-host face and pose models and set both
       `NEXT_PUBLIC_FACE_LANDMARKER_MODEL_URL` and `NEXT_PUBLIC_POSE_LANDMARKER_MODEL_URL`.
+=======
+- [ ] For offline/air-gapped deployments, self-host the face landmarker model and set
+      `NEXT_PUBLIC_FACE_LANDMARKER_MODEL_URL`.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 **Platform**
 - [ ] TLS terminated at the proxy; HSTS enabled there (`frame-ancestors`/HSTS belong at the edge,
@@ -273,8 +303,12 @@ Environment: Python 3.11.2, Node v22.22.3, ffmpeg/ffprobe present, no MongoDB da
 - [ ] Log aggregation for the API (provider failures are logged with context, never returned).
 
 **Before announcing**
+<<<<<<< HEAD
 - [ ] `cd backend && python -m scripts.smoke_test_ai` — routed text generation, answer analysis,
       profile extraction and report evaluation; optionally pass an audio file for Groq STT.
+=======
+- [ ] `cd backend && python -m scripts.smoke_test_ai` — all seven steps produce sensible output.
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 - [ ] Manual browser pass in Chrome and Safari: signup → create interview → upload resume + JD →
       start → answer by text → answer by voice → confirm the transcript → complete → generate the
       report → verify Delivery (voice) and Webcam (camera) scores appear and match what you did.
@@ -282,6 +316,7 @@ Environment: Python 3.11.2, Node v22.22.3, ffmpeg/ffprobe present, no MongoDB da
 - [ ] Two tabs, one interview: submitting in both doesn't duplicate turns (expect a 409 on the
       stale one).
 - [ ] Restore a backup into staging and confirm a login works.
+<<<<<<< HEAD
 
 
 ## Addendum — free-only router and posture privacy (2026-10-19)
@@ -296,3 +331,5 @@ Implemented in this revision:
 Provider model/free-tier sources were checked on 2026-10-19 and linked in `README.md`. The application enforces model IDs, but cannot determine whether a provider API key's account has billing enabled, nor can it guarantee upstream provider data-retention policy. Use provider-specific dedicated free-tier credentials and review the privacy terms before uploading resumes or other confidential content.
 
 **Checks for this revision:** changed Python modules compile. Targeted router/scoring tests passed: 34, using `pytest --noconftest` and a temporary local SDK stub because the actual OpenAI SDK was unavailable. Python compilation (`compileall` over `backend/app` and `backend/tests`) and TypeScript syntax transpilation for nine changed frontend files also passed. The full backend test suite could not run because `mongomock_motor` is missing and the package index is unreachable. Frontend type-check, lint, tests, and production build could not run because `node_modules` is absent; an attempted type-check confirms missing React/MediaPipe and other declarations. No real provider API call or live camera session was performed. Install dependencies and run the README smoke/manual checks before production deployment.
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7

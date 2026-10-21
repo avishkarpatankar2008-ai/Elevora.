@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAggregate,
+<<<<<<< HEAD
   buildPostureSummary,
   derivePoseFrameMetrics,
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   estimateForwardAlignment,
   landmarkCentroid,
 } from "@/lib/webcamAnalytics";
@@ -80,6 +83,7 @@ describe("buildAggregate", () => {
     expect(aggregate!.movementRate).toBe(0);
   });
 });
+<<<<<<< HEAD
 
 
 describe("pose geometry features", () => {
@@ -126,3 +130,5 @@ describe("pose geometry features", () => {
     expect(buildPostureSummary(aggregate)).toContain("not a judgement");
   });
 });
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7

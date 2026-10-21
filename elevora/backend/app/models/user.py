@@ -10,11 +10,15 @@ def new_user_document(name: str, email: str, hashed_password: str) -> dict[str, 
         "email": email.lower(),
         "passwordHash": hashed_password,
         "createdAt": datetime.now(timezone.utc),
+<<<<<<< HEAD
         "preferences": {
             "language": "English",
             "defaultDifficulty": "medium",
             "aiProcessing": "private",
         },
+=======
+        "preferences": {"language": "English", "defaultDifficulty": "medium"},
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     }
 
 

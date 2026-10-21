@@ -45,9 +45,12 @@ export function CameraPreview({
 }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+<<<<<<< HEAD
   // A permission prompt can resolve after the component is turned off or
   // unmounted. Versioning prevents that late stream from surviving revocation.
   const requestVersionRef = useRef(0);
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   const [status, setStatus] = useState<CameraStatus>("idle");
 
   const updateStatus = useCallback(
@@ -59,7 +62,10 @@ export function CameraPreview({
   );
 
   const stopCamera = useCallback(() => {
+<<<<<<< HEAD
     requestVersionRef.current += 1;
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -70,6 +76,7 @@ export function CameraPreview({
       updateStatus("unavailable");
       return;
     }
+<<<<<<< HEAD
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
     updateStatus("requesting");
@@ -81,11 +88,17 @@ export function CameraPreview({
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
+=======
+    updateStatus("requesting");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
       stream.getVideoTracks().forEach((track) => {
+<<<<<<< HEAD
         track.onended = () => {
           if (requestVersion === requestVersionRef.current) updateStatus("disconnected");
         };
@@ -93,6 +106,13 @@ export function CameraPreview({
       updateStatus("active");
     } catch {
       if (requestVersion === requestVersionRef.current) updateStatus("denied");
+=======
+        track.onended = () => updateStatus("disconnected");
+      });
+      updateStatus("active");
+    } catch {
+      updateStatus("denied");
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     }
   }, [updateStatus]);
 

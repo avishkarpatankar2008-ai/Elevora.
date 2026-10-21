@@ -160,7 +160,11 @@ export function ConversationTimeline({
           />
           <div className="flex flex-wrap items-center gap-3 pl-11">
             <PlayQuestionButton
+<<<<<<< HEAD
               questionText={pending.question}
+=======
+              interviewId={interview.id}
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               onSpeakingChange={onSpeakingChange}
               autoPlay={autoPlayQuestion}
               autoPlayKey={`${turns.length}-${pending.question}`}

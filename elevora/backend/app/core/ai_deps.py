@@ -1,16 +1,21 @@
 from functools import lru_cache
 
+<<<<<<< HEAD
 from fastapi import Depends, HTTPException, status
 
 from app.core.deps import get_current_user
 from app.core.rate_limit import check_ai_user_rate_limit
 from app.services.ai_client import AIClient, OpenAIClient
 from app.services.private_ai import PrivateAIClient
+=======
+from app.services.ai_client import OpenAIClient
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 
 @lru_cache
 def get_ai_client() -> OpenAIClient:
     return OpenAIClient()
+<<<<<<< HEAD
 
 
 @lru_cache
@@ -49,3 +54,5 @@ def get_user_ai_client(
             headers={"Retry-After": str(max(1, int(wait_seconds)))},
         )
     return base
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7

@@ -13,7 +13,10 @@ export function RoomControls({
   recordingState,
   cameraEnabled,
   cameraStatus,
+<<<<<<< HEAD
   cameraConsentGiven,
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   isBusy,
   canSubmit,
   onRecord,
@@ -31,7 +34,10 @@ export function RoomControls({
   recordingState: RecordingState;
   cameraEnabled: boolean;
   cameraStatus: CameraStatus;
+<<<<<<< HEAD
   cameraConsentGiven: boolean;
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
   isBusy: boolean;
   canSubmit: boolean;
   onRecord: () => void;
@@ -116,7 +122,10 @@ export function RoomControls({
               variant="ghost"
               size="sm"
               onClick={onToggleCamera}
+<<<<<<< HEAD
               disabled={!cameraConsentGiven}
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               aria-pressed={cameraEnabled}
             >
               <svg
@@ -134,7 +143,11 @@ export function RoomControls({
                 <path d="m14 11 5-3v8l-5-3" />
                 {!cameraEnabled && <path d="m3 3 18 18" />}
               </svg>
+<<<<<<< HEAD
               {cameraEnabled ? "Camera on" : cameraConsentGiven ? "Camera off" : "Camera consent required"}
+=======
+              {cameraEnabled ? "Camera on" : "Camera off"}
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
               {cameraStatus === "active" && (
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-success" />
               )}

@@ -7,7 +7,10 @@ underlying parser exception is logged, never returned.
 """
 
 import io
+<<<<<<< HEAD
 import zipfile
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 
 import docx
 import pymupdf
@@ -24,10 +27,13 @@ ALLOWED_DOCUMENT_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
 }
 
+<<<<<<< HEAD
 MAX_PDF_PAGES = 40  # a resume/JD never needs more; bounds parser CPU and memory
 MAX_DOCX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024  # zip-bomb guard (file is <=8MB compressed)
 MAX_DOCX_ENTRIES = 2_000
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 PDF_MAGIC = b"%PDF-"
 DOCX_MAGIC = b"PK\x03\x04"  # docx is a zip archive
 
@@ -59,11 +65,14 @@ def extract_text_from_pdf(raw: bytes) -> str:
                     "That PDF is password-protected, so its text can't be read. "
                     "Upload an unprotected copy."
                 )
+<<<<<<< HEAD
             if pdf.page_count > MAX_PDF_PAGES:
                 raise DocumentParseError(
                     f"That PDF has {pdf.page_count} pages. Resumes and job descriptions "
                     f"should be at most {MAX_PDF_PAGES} pages."
                 )
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
             return "\n".join(page.get_text() for page in pdf)
     except DocumentParseError:
         raise
@@ -75,6 +84,7 @@ def extract_text_from_pdf(raw: bytes) -> str:
         ) from exc
 
 
+<<<<<<< HEAD
 def _reject_zip_bomb(raw: bytes) -> None:
     """A .docx is a zip: refuse archives that would expand far beyond what a
     text document can plausibly need, before python-docx decompresses them."""
@@ -92,13 +102,18 @@ def _reject_zip_bomb(raw: bytes) -> None:
         ) from exc
 
 
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
 def extract_text_from_docx(raw: bytes) -> str:
     if not _looks_like_docx(raw):
         raise DocumentParseError(
             "This doesn't look like a real .docx file (wrong file signature) — "
             "it may be corrupted, an old .doc file, or renamed from another format."
         )
+<<<<<<< HEAD
     _reject_zip_bomb(raw)
+=======
+>>>>>>> b639e0e023ad87cd0c1a7fcc7d2c906d3fa7f2b7
     try:
         document = docx.Document(io.BytesIO(raw))
         return "\n".join(p.text for p in document.paragraphs)
